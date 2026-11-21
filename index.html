@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101820">
+  <meta name="description" content="Offline-capable GPS distance, true bearing, slope and ETA instrument.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <title>True Vector</title>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">TRUE VECTOR <span class="version">V1.0</span></div>
+      <div class="status" id="gpsStatus" role="status" aria-live="polite">GPS NOT STARTED</div>
+    </header>
+
+    <section class="target-panel" aria-label="Selected target">
+      <div class="eyebrow">TARGET</div>
+      <div class="target-name" id="targetSummary">No target selected</div>
+      <div class="target-meta" id="targetMeta">Enter coordinates below</div>
+    </section>
+
+    <section class="readouts" aria-label="Navigation information">
+      <div class="distance-block">
+        <div class="eyebrow">DISTANCE</div>
+        <div class="distance-value"><span id="distance">—.—</span><small>NM</small></div>
+        <div class="bearing-line">TRUE BEARING <strong id="bearing">——°T</strong></div>
+      </div>
+
+      <div class="metric slope-metric" id="slopeMetric" data-confidence="none">
+        <div class="metric-label">SLOPE</div>
+        <div class="metric-value" id="slope">—</div>
+        <div class="metric-note" id="slopeNote">Target elevation required</div>
+      </div>
+
+      <div class="metric height-metric" id="heightMetric" data-confidence="none">
+        <div class="metric-label">HEIGHT DIFFERENCE</div>
+        <div class="metric-value" id="heightDiff">—</div>
+        <div class="metric-note" id="heightNote">Feet</div>
+      </div>
+
+      <div class="metric eta-metric">
+        <div class="metric-label">TIME TO TARGET</div>
+        <div class="eta-value" id="eta">--:--</div>
+        <div class="metric-note" id="etaNote">Waiting for closing movement</div>
+      </div>
+    </section>
+
+    <section class="bearing-strip">
+      <span>POSITION ACCURACY <strong id="positionAccuracy">—</strong></span>
+      <span>GPS ALTITUDE <strong id="gpsAltitude">—</strong></span>
+    </section>
+
+    <details class="controls" open>
+      <summary>Target &amp; settings</summary>
+      <form id="targetForm">
+        <label for="targetName">Target name (optional)</label>
+        <input id="targetName" type="text" maxlength="40" placeholder="e.g. EGBJ, I-GOS or Home">
+        <div class="field-grid">
+          <div>
+            <label for="latitude">Latitude (decimal degrees)</label>
+            <input id="latitude" type="number" step="any" min="-90" max="90" placeholder="51.8942" required>
+          </div>
+          <div>
+            <label for="longitude">Longitude (decimal degrees)</label>
+            <input id="longitude" type="number" step="any" min="-180" max="180" placeholder="-2.1672" required>
+          </div>
+        </div>
+        <label for="targetElevation">Target elevation (ft AMSL, optional)</label>
+        <input id="targetElevation" type="number" step="1" placeholder="e.g. 100">
+        <div class="form-actions">
+          <button type="submit" class="primary">Set target</button>
+          <button type="button" id="clearTarget" class="secondary">Clear</button>
+        </div>
+        <p class="help">Coordinates are decimal degrees. West and south are negative. Elevation must be in feet AMSL.</p>
+      </form>
+      <div class="settings-row">
+        <label class="check-label"><input type="checkbox" id="useBaro" disabled> Use barometric altitude (not available in this browser)</label>
+      </div>
+      <div class="form-actions gps-actions">
+        <button type="button" id="startGps" class="primary">Start GPS</button>
+        <button type="button" id="stopGps" class="secondary" disabled>Stop GPS</button>
+      </div>
+    </details>
+
+    <footer>
+      <div id="datumWarning" class="warning">Altitude note: browser GPS altitude may be referenced to the WGS‑84 ellipsoid, while target elevation is AMSL. Slope is therefore indicative unless the altitude datums are known to match.</div>
+      <div class="footer-note">Informational aid only — not approved navigation equipment.</div>
+      <div class="footer-note" id="installHint"></div>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
