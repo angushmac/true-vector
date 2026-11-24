@@ -97,10 +97,11 @@
       }
       setConfidence(fresh?confidence:"poor",fresh?note:"Stale GPS fix");
       $("heightDiff").classList.toggle("flash",fresh&&Math.abs(heightFeet)<Number($("flash").value));
-      const angle=Number($("angle").value), delta=-slope-angle;
+      const angle=Number($("angle").value), intermediate=active<route.length-1, delta=intermediate?-heightFeet/100:-slope-angle;
       const whites=delta>0.5?4:delta>0.2?3:delta< -0.5?0:delta< -0.2?1:2;
+      $("papi").setAttribute("aria-label",intermediate?"Experimental altitude deviation lights":"Simulated geometric slope lights");
       $("papi").replaceChildren(...Array.from({length:4},(_,i)=>{const e=document.createElement("span");e.textContent="●";e.style.color=i<whites?"white":"#ff5555";return e;}));
-      $("papi").style.visibility=fresh&&confidence!=="poor"&&heightFeet<0&&result.metres>accuracy&&angle>=1&&angle<=10?"visible":"hidden";
+      $("papi").style.visibility=fresh&&confidence!=="poor"&&(intermediate||(heightFeet<0&&result.metres>accuracy&&angle>=1&&angle<=10))?"visible":"hidden";
     } else {
       $("slope").textContent="—";
       $("heightDiff").textContent="—";
@@ -124,7 +125,10 @@
     else localStorage.setItem("trueVectorTarget",JSON.stringify(state.target));
   }
 
-  let route=[], active=0, points=[], saved={};
+  let route=[], active=0, points=[], saved={}, routeName="";
+  function nameOf(t){return t.name||`${t.lat.toFixed(5)}, ${t.lon.toFixed(5)}`;}
+  function clearForm(){for(const id of ["targetName","latitude","longitude","targetElevation"])$(id).value="";}
+  function autoSave(){if(!route.length)return;routeName=nameOf(route[route.length-1]);saved[routeName]=route.map(t=>({...t}));localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved();$("savedRoutes").value=routeName;}
   function parseCoord(value, limit) {
     let t=value.trim().toUpperCase(); if(!t) return NaN;
     const h=t.match(/[NSEW]/g)||[]; if(h.length>1||h.some(x=>limit===90?!/[NS]/.test(x):!/[EW]/.test(x))) return NaN;
@@ -137,10 +141,10 @@
   function formTarget(){const lat=parseCoord($("latitude").value,90),lon=parseCoord($("longitude").value,180),t=$("targetElevation").value,elevation=t===""?null:Number(t);if(!Number.isFinite(lat)||!Number.isFinite(lon)||(t!==""&&!Number.isFinite(elevation)))throw Error("Invalid coordinates or altitude");return {name:$("targetName").value.trim(),lat,lon,elevation};}
   function fill(t){$("targetName").value=t.name||"";$("latitude").value=t.lat;$("longitude").value=t.lon;$("targetElevation").value=t.elevation??"";}
   function resetEta(){state.previousRange=null;state.previousTime=null;state.closingRates=[];}
-  function select(){state.target=route[active]||null;resetEta();updateTargetSummary();saveTarget();localStorage.setItem("tvRoute",JSON.stringify({route,active}));$("routeList").textContent=route.map((t,i)=>`${i===active?"▶ ":""}${i+1}. ${t.name||t.lat+", "+t.lon}`).join(" · ");if(state.target&&state.fix)render();}
+  function select(){state.target=route[active]||null;resetEta();updateTargetSummary();saveTarget();localStorage.setItem("tvRoute",JSON.stringify({route,active}));$("routeProgress").replaceChildren(...route.map((t,i)=>{const el=document.createElement("div");el.className=i===active?"active-leg":"inactive-leg";el.textContent=`${i===active?"▶ ":""}${i+1}. ${nameOf(t)}${Number.isFinite(t.elevation)?` · ${t.elevation} ft`:""}${i===route.length-1?" · Destination":""}`;return el;}));$("routeList").textContent=route.map((t,i)=>`${i===active?"▶ ":""}${i+1}. ${t.name||t.lat+", "+t.lon}`).join(" · ");if(state.target&&state.fix)render();}
   function attempt(fn){try{fn()}catch(e){alert(e.message)}}
-  $("targetForm").onsubmit=e=>{e.preventDefault();attempt(()=>{route=[formTarget()];active=0;select()})};
-  $("append").onclick=()=>attempt(()=>{if(route.length>=3)throw Error("Maximum three targets");route.push(formTarget());select()});
+  $("targetForm").onsubmit=e=>{e.preventDefault();attempt(()=>{const t=formTarget();if(route.length&&!confirm("Start a new route? The existing saved route will remain."))return;route=[t];active=0;select();autoSave();clearForm()})};
+  $("append").onclick=()=>attempt(()=>{if(!route.length)throw Error("Save the destination first");if(route.length>=3)throw Error("Maximum three targets");route.unshift(formTarget());active=0;select();autoSave();clearForm()});
   $("next").onclick=()=>{if(active+1<route.length){active++;select()}};
   $("clearTarget").onclick=()=>{route=[];active=0;select();for(const id of ["distance","bearing","slope","heightDiff","eta","etaNote"])$(id).textContent="—";$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash")};
   $("here").onclick=()=>attempt(()=>{if(!state.fix||Date.now()-state.fix.timestamp>15000)throw Error("Fresh GPS fix required");fill({name:"HERE",lat:state.fix.latitude,lon:state.fix.longitude,elevation:Number.isFinite(state.fix.altitude)?Math.round(state.fix.altitude*FT_PER_METRE):null});});
@@ -149,7 +153,7 @@
   $("findWords").onclick=async()=>{try{const words=$("words").value.trim().replace(/^\/\/\//,"");if(!$("wkey").value)throw Error("API key required");const r=await fetch("https://api.what3words.com/v3/convert-to-coordinates?"+new URLSearchParams({words,key:$("wkey").value}));const d=await r.json();if(!r.ok||!d.coordinates)throw Error(d.error?.message||"Lookup failed");if(d.country!=="GB"&&!confirm(`Result country: ${d.country}. Use it?`))return;fill({name:words,lat:d.coordinates.lat,lon:d.coordinates.lng,elevation:null})}catch(e){alert(e.message)}};
   function listSaved(){$("savedRoutes").replaceChildren(...Object.keys(saved).map(k=>new Option(k,k)))}
   $("remember").onclick=()=>{if(!route.length)return;const name=prompt("Route name");if(name){saved[name]=route.map(t=>({...t}));localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved()}};
-  $("recall").onclick=()=>{const r=saved[$("savedRoutes").value];if(r){route=r.map(t=>({...t}));active=0;select();fill(route[0])}};
+  $("recall").onclick=()=>{const r=saved[$("savedRoutes").value];if(r){route=r.map(t=>({...t}));active=0;select();clearForm()}};
   let wake=null;async function keepAwake(){if(state.watchId===null||document.hidden)return;try{if(!wake||wake.released)wake=await navigator.wakeLock.request("screen");$("wakeStatus").textContent="Screen wake lock active"}catch(e){$("wakeStatus").textContent="Wake lock unavailable; check Auto-Lock settings"}}
   document.addEventListener("visibilitychange",keepAwake);
   function sequence(old){if(!old||active+1>=route.length||!state.target||!Number.isFinite(state.track))return;const t=state.target, a=distanceAndBearing(old.latitude,old.longitude,t.lat,t.lon),b=distanceAndBearing(state.fix.latitude,state.fix.longitude,t.lat,t.lon);const err=Math.max(old.accuracy,state.fix.accuracy);if(err>30||a.metres>Math.max(100,err*3)||b.metres<=a.metres)return;const diff=Math.abs(((b.bearing-state.track+540)%360)-180);if(diff>120){active++;select()}}
@@ -185,7 +189,7 @@
 
   $("stopGps").addEventListener("click", () => {
     if (state.watchId !== null) navigator.geolocation.clearWatch(state.watchId);
-    state.watchId=null; if(wake)wake.release(); $("wakeStatus").textContent="Screen wake lock released"; state.fix=null; $("pointer").style.visibility=$("papi").style.visibility="hidden"; $("distance").dataset.confidence="poor"; setConfidence("poor","GPS paused"); $("gs").textContent="GS — kt"; $("startGps").disabled=false; $("stopGps").disabled=true;
+    state.watchId=null; if(wake)wake.release(); $("wakeStatus").textContent="Screen wake lock released"; state.fix=null; $("heightDiff").classList.remove("flash"); $("pointer").style.visibility=$("papi").style.visibility="hidden"; $("distance").dataset.confidence="poor"; setConfidence("poor","GPS paused"); $("gs").textContent="GS — kt"; $("startGps").disabled=false; $("stopGps").disabled=true;
     $("gpsStatus").textContent="GPS PAUSED"; $("gpsStatus").style.color="var(--muted)";
   });
 
@@ -201,7 +205,7 @@
     }
   } catch (_) { localStorage.removeItem("trueVectorTarget"); }
 
-  try {const r=JSON.parse(localStorage.getItem("tvRoute")||"null");route=r?.route|| (state.target?[state.target]:[]);active=r?.active||0;points=JSON.parse(localStorage.getItem("tvPoints")||"[]");saved=JSON.parse(localStorage.getItem("tvSaved")||"{}");listSaved();select();}catch(e){}
+  try {const r=JSON.parse(localStorage.getItem("tvRoute")||"null");route=r?.route|| (state.target?[state.target]:[]);active=r?.active||0;points=JSON.parse(localStorage.getItem("tvPoints")||"[]");saved=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvSaved")||"{}"));listSaved();select();clearForm();}catch(e){}
   setInterval(()=>{if(state.fix&&Date.now()-state.fix.timestamp>=15000){$("distance").dataset.confidence="poor";setConfidence("poor","Stale GPS fix");$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");$("gs").textContent="GS — kt";$("eta").textContent="--:--";}},1000);
   for(const id of ["angle","flash"]){const v=localStorage.getItem("tv-"+id);if(v!==null)$(id).value=v;$(id).onchange=()=>{localStorage.setItem("tv-"+id,$(id).value);if(state.fix)render()}}
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

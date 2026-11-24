@@ -13,14 +13,14 @@
 <body>
   <main class="app">
     <header class="topbar">
-      <div class="brand">TRUE VECTOR <span class="version">V2.0 LITE · BETA</span></div>
+      <div class="brand">TRUE VECTOR <span class="version">V2.1 LITE · BETA</span></div>
       <div class="status" id="gpsStatus" role="status" aria-live="polite">GPS NOT STARTED</div>
     </header>
 
     <section class="target-panel" aria-label="Selected target">
-      <div class="eyebrow">TARGET</div>
+      <div class="eyebrow">ROUTE / ACTIVE TARGET</div>
       <div class="target-name" id="targetSummary">No target selected</div>
-      <div class="target-meta" id="targetMeta">Enter coordinates below</div>
+      <div id="routeProgress" aria-label="Route sequence"></div><div class="target-meta" id="targetMeta">Enter coordinates below</div>
     </section>
 
     <section class="readouts" aria-label="Navigation information">
@@ -56,8 +56,8 @@
 
     <details class="controls" open>
       <summary>Target &amp; settings</summary>
-      <form id="targetForm">
-        <label for="targetName">Target name (optional)</label>
+      <form id="targetForm"><p class="help">Enter the destination first and save it. Then enter the preceding waypoint and tap Add next target. Repeat for the initial waypoint. Routes are saved automatically.</p>
+        <label for="targetName">Target name (destination becomes route name)</label>
         <input id="targetName" type="text" maxlength="40" placeholder="e.g. EGBJ, I-GOS or Home">
         <div class="field-grid">
           <div>
@@ -72,22 +72,23 @@
         <label for="targetElevation">Target elevation (ft AMSL, optional)</label>
         <input id="targetElevation" type="number" step="1" placeholder="e.g. 100">
         <div class="form-actions">
-          <button type="submit" class="primary">Set target / replace route</button>
+          <button type="submit" class="primary">Save destination / start new route</button>
           <button type="button" id="clearTarget" class="secondary">Clear</button>
         </div>
         <div class="form-actions"><button type="button" id="here">HERE</button><button type="button" id="append">Add next target</button></div>
-        <label>UK waypoint identifier (imported data)</label><input id="lookup" type="text" placeholder="I-GOS / SOSAB"><button type="button" id="findPoint">Find waypoint</button><label>Import verified waypoint JSON</label><input id="importPoints" type="file" accept=".json">
-        <label>what3words (online, own API key)</label><input id="words" type="text" placeholder="word.word.word"><input id="wkey" type="password" placeholder="API key (not saved)"><button type="button" id="findWords">Resolve words</button>
-        <div id="routeList"></div><label>Saved routes</label><select id="savedRoutes"></select><div class="form-actions"><button type="button" id="remember">Remember route</button><button type="button" id="recall">Recall</button><button type="button" id="next">Next manually</button></div>
+        <div id="routeList"></div><label>Saved routes</label><select id="savedRoutes"></select><div class="form-actions"><button type="button" id="remember">Save as another name</button><button type="button" id="recall">Recall / restart</button><button type="button" id="next">Next manually</button></div>
         <p class="help">Decimal degrees or degrees:minutes:seconds with optional N/S/E/W. Target altitude in feet; verify datum. Automatic sequencing is experimental.</p>
       </form>
-      <div class="settings-row"><label>Simulated PAPI angle (degrees)</label><input id="angle" type="number" min="1" max="10" step="0.1" value="3.5"><label>Height flash threshold (ft)</label><input id="flash" type="number" min="0" value="400"><div id="wakeStatus"></div></div><div class="settings-row">
+      <div class="settings-row"><label>Destination simulated PAPI angle (degrees)</label><input id="angle" type="number" min="1" max="10" step="0.1" value="3.5"><label>Height flash threshold (ft)</label><input id="flash" type="number" min="0" value="400"><div id="wakeStatus"></div></div><div class="settings-row">
         <label class="check-label"><input type="checkbox" id="useBaro" disabled> Use barometric altitude (not available in this browser)</label>
       </div>
       <div class="form-actions gps-actions">
         <button type="button" id="startGps" class="primary">Start GPS</button>
         <button type="button" id="stopGps" class="secondary" disabled>Stop GPS</button>
       </div>
+      <details class="lookup-tools"><summary>Waypoint database / what3words</summary>        <label>UK waypoint identifier (imported data)</label><input id="lookup" type="text" placeholder="I-GOS / SOSAB"><button type="button" id="findPoint">Find waypoint</button><label>Import verified waypoint JSON</label><input id="importPoints" type="file" accept=".json">
+        <label>what3words (online, own API key)</label><input id="words" type="text" placeholder="word.word.word"><input id="wkey" type="password" placeholder="API key (not saved)"><button type="button" id="findWords">Resolve words</button>
+</details>
     </details>
 
     <footer>
