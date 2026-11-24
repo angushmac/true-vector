@@ -16,3 +16,6 @@ Enter and save the destination first, then enter each preceding waypoint and tap
 
 ## v2.2 Lite Beta
 Stored targets are imported from existing local routes on first launch. Select a target and Load / inspect to view full stored coordinates and altitude. Save target to library creates a reusable record; Update loaded target changes only the library record, not existing route snapshots. To use a revised target in a route, rebuild the route destination first, then preceding waypoints. Choose a saved route, review its travel order and activate it to restart at the first leg. Targets and routes persist in local storage on the same origin/device, subject to browser retention. GS, GPS altitude and true bearing enlarged. No live device or flight validation.
+
+## V3.3 Lite
+Separate Routes and Targets panels. Create or edit a route using stored targets, save it, then Use route to activate. Clear active route does not delete saved data. Delete saved route removes only the saved copy. Targets can be created, edited, used directly or deleted. HERE requires a name before populating the form; verify and save it. Routes retain independent target snapshots; edit a route to adopt updated targets. Editing a route can restore its historical target snapshots to the library. Existing local storage keys are retained. Beta: not flight navigation or approach guidance.

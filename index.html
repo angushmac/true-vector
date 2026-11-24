@@ -13,7 +13,7 @@
 <body>
   <main class="app">
     <header class="topbar">
-      <div class="brand">TRUE VECTOR <span class="version">V2.2 LITE · BETA</span></div>
+      <div class="brand">TRUE VECTOR <span class="version">V3.3 LITE · BETA</span></div>
       <div class="status" id="gpsStatus" role="status" aria-live="polite">GPS NOT STARTED</div>
     </header>
 
@@ -56,31 +56,10 @@
 
     <details class="controls" open>
       <summary>Target &amp; settings</summary>
-      <div class="library-panel"><label for="savedRoutes">Saved routes</label><select id="savedRoutes"></select><div id="savedPreview" class="help"></div><button type="button" id="recall" class="primary wide">Activate selected route</button></div>
-      <form id="targetForm"><div class="library-panel"><label for="targetLibrary">Stored targets</label><select id="targetLibrary"></select><button type="button" id="loadTarget" class="secondary wide">Load / inspect selected target</button><button type="button" id="newTarget" class="secondary wide">New target / clear fields</button><div id="libraryStatus" class="help" role="status"></div></div><p class="help">Enter the destination first and save it. Then enter the preceding waypoint and tap Add next target. Repeat for the initial waypoint. Routes are saved automatically.</p>
-        <label for="targetName">Target name (destination becomes route name)</label>
-        <input id="targetName" type="text" maxlength="40" placeholder="e.g. EGBJ, I-GOS or Home">
-        <div class="field-grid">
-          <div>
-            <label for="latitude">Latitude (decimal degrees)</label>
-            <input id="latitude" type="text" placeholder="51.8942" required>
-          </div>
-          <div>
-            <label for="longitude">Longitude (decimal degrees)</label>
-            <input id="longitude" type="text" placeholder="-2.1672" required>
-          </div>
-        </div>
-        <label for="targetElevation">Target elevation (ft AMSL, optional)</label>
-        <input id="targetElevation" type="number" step="1" placeholder="e.g. 100">
-        <button type="button" id="storeTarget" class="secondary">Save target to library</button><button type="button" id="updateStored" class="secondary" disabled>Update loaded target</button>
-        <div class="form-actions">
-          <button type="submit" class="primary">Save destination / start new route</button>
-          <button type="button" id="clearTarget" class="secondary">Clear</button>
-        </div>
-        <div class="form-actions"><button type="button" id="here">HERE</button><button type="button" id="append">Add next target</button></div>
-        <div id="routeList"></div><div class="form-actions"><button type="button" id="remember">Save as another name</button><button type="button" id="next">Next manually</button></div>
-        <p class="help">Decimal degrees or degrees:minutes:seconds with optional N/S/E/W. Target altitude in feet; verify datum. Automatic sequencing is experimental.</p>
-      </form>
+      <section class="library-panel"><h3>1. Routes</h3><label for="savedRoutes">Saved routes</label><select id="savedRoutes"></select><div id="savedPreview" class="help"></div><div class="form-actions"><button id="recall" class="primary">Use route</button><button id="editRoute">Edit route</button><button id="newRoute">Create route</button><button id="clearTarget">Clear active route</button><button id="deleteRoute">Delete saved route</button><button id="next">Next manually</button></div>
+      <div id="routeEditor" hidden><label for="routeName">Route name (defaults to destination)</label><input id="routeName" maxlength="80"><p class="help">Choose stored targets. Destination first; preceding waypoints are optional.</p><label for="dest">Destination</label><select id="dest"></select><label for="finalWp">Final waypoint (optional)</label><select id="finalWp"></select><label for="initialWp">Initial waypoint (optional)</label><select id="initialWp"></select><div class="form-actions"><button id="saveRoute" class="primary">Save route</button><button id="cancelRoute">Cancel</button></div></div><div id="routeList" class="help"></div></section>
+      <section class="library-panel"><h3>2. Targets</h3><label for="targetLibrary">Stored targets</label><select id="targetLibrary"></select><div class="form-actions"><button id="newTarget">Create target</button><button id="loadTarget">Edit / inspect target</button><button id="useTarget" class="primary">Use target directly</button><button id="deleteTarget">Delete target</button></div><div id="libraryStatus" class="help" role="status"></div>
+      <form id="targetForm"><label for="targetName">Target name</label><input id="targetName" maxlength="40" required><div class="field-grid"><div><label for="latitude">Latitude</label><input id="latitude" required></div><div><label for="longitude">Longitude</label><input id="longitude" required></div></div><label for="targetElevation">Target elevation (ft AMSL, optional)</label><input id="targetElevation" type="number" step="1"><div class="form-actions"><button type="submit" id="storeTarget" class="primary">Save new target</button><button type="button" id="updateStored" disabled>Save target changes</button><button type="button" id="here">HERE — capture and name</button></div><p class="help">Decimal degrees or degrees:minutes:seconds. Verify coordinates and altitude datum. Saved routes retain their own target details.</p></form></section>
       <div class="settings-row"><label>Destination simulated PAPI angle (degrees)</label><input id="angle" type="number" min="1" max="10" step="0.1" value="3.5"><label>Height flash threshold (ft)</label><input id="flash" type="number" min="0" value="400"><div id="wakeStatus"></div></div><div class="settings-row">
         <label class="check-label"><input type="checkbox" id="useBaro" disabled> Use barometric altitude (not available in this browser)</label>
       </div>
