@@ -126,9 +126,19 @@
   }
 
   let route=[], active=0, points=[], saved={}, routeName="";
+  let library=[], editing=null;
+  const sameTarget=(a,b)=>a.name===b.name&&a.lat===b.lat&&a.lon===b.lon&&(a.elevation??null)===(b.elevation??null);
+  function persistLibrary(){localStorage.setItem("tvLibrary",JSON.stringify(library));}
+  function listLibrary(){const old=$("targetLibrary").value;$("targetLibrary").replaceChildren(new Option("Choose a stored target", ""),...library.map((t,i)=>new Option(`${nameOf(t)} | ${t.elevation??"?"} ft | ${t.lat.toFixed(5)}, ${t.lon.toFixed(5)}`,String(i))));$("targetLibrary").value=old;}
+  function addLibrary(t){let i=library.findIndex(x=>sameTarget(x,t));if(i<0){library.push({...t});i=library.length-1;persistLibrary();}listLibrary();return i;}
+  $("loadTarget").onclick=()=>attempt(()=>{if($("targetLibrary").value==="")throw Error("Choose a stored target first");editing=Number($("targetLibrary").value);fill(library[editing]);$("updateStored").disabled=false;$("libraryStatus").textContent="Loaded: inspect or edit below, then update or add to route.";});
+  $("newTarget").onclick=()=>{clearForm();$("libraryStatus").textContent="New target";};
+  $("storeTarget").onclick=()=>attempt(()=>{const t=formTarget();if(!t.name)throw Error("Enter a target name");editing=addLibrary(t);$("targetLibrary").value=String(editing);$("updateStored").disabled=false;$("libraryStatus").textContent="Target saved locally.";});
+  $("updateStored").onclick=()=>attempt(()=>{if(editing===null)return;const t=formTarget();if(!t.name)throw Error("Enter a target name");if(!confirm("Update library target? Existing routes retain their saved coordinates and altitudes; rebuild them to use the change."))return;library[editing]={...t};persistLibrary();listLibrary();$("targetLibrary").value=String(editing);$("libraryStatus").textContent="Target updated. Existing routes unchanged.";});
+
   function nameOf(t){return t.name||`${t.lat.toFixed(5)}, ${t.lon.toFixed(5)}`;}
-  function clearForm(){for(const id of ["targetName","latitude","longitude","targetElevation"])$(id).value="";}
-  function autoSave(){if(!route.length)return;routeName=nameOf(route[route.length-1]);saved[routeName]=route.map(t=>({...t}));localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved();$("savedRoutes").value=routeName;}
+  function clearForm(){editing=null;$("updateStored").disabled=true;for(const id of ["targetName","latitude","longitude","targetElevation"])$(id).value="";}
+  function autoSave(){if(!route.length)return;routeName=nameOf(route[route.length-1]);saved[routeName]=route.map(t=>({...t}));localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved();$("savedRoutes").value=routeName;previewRoute();}
   function parseCoord(value, limit) {
     let t=value.trim().toUpperCase(); if(!t) return NaN;
     const h=t.match(/[NSEW]/g)||[]; if(h.length>1||h.some(x=>limit===90?!/[NS]/.test(x):!/[EW]/.test(x))) return NaN;
@@ -143,15 +153,17 @@
   function resetEta(){state.previousRange=null;state.previousTime=null;state.closingRates=[];}
   function select(){state.target=route[active]||null;resetEta();updateTargetSummary();saveTarget();localStorage.setItem("tvRoute",JSON.stringify({route,active}));$("routeProgress").replaceChildren(...route.map((t,i)=>{const el=document.createElement("div");el.className=i===active?"active-leg":"inactive-leg";el.textContent=`${i===active?"▶ ":""}${i+1}. ${nameOf(t)}${Number.isFinite(t.elevation)?` · ${t.elevation} ft`:""}${i===route.length-1?" · Destination":""}`;return el;}));$("routeList").textContent=route.map((t,i)=>`${i===active?"▶ ":""}${i+1}. ${t.name||t.lat+", "+t.lon}`).join(" · ");if(state.target&&state.fix)render();}
   function attempt(fn){try{fn()}catch(e){alert(e.message)}}
-  $("targetForm").onsubmit=e=>{e.preventDefault();attempt(()=>{const t=formTarget();if(route.length&&!confirm("Start a new route? The existing saved route will remain."))return;route=[t];active=0;select();autoSave();clearForm()})};
-  $("append").onclick=()=>attempt(()=>{if(!route.length)throw Error("Save the destination first");if(route.length>=3)throw Error("Maximum three targets");route.unshift(formTarget());active=0;select();autoSave();clearForm()});
+  $("targetForm").onsubmit=e=>{e.preventDefault();attempt(()=>{const t=formTarget();if(route.length&&!confirm("Start a new route? The existing saved route will remain."))return;addLibrary(t);route=[t];active=0;select();autoSave();clearForm()})};
+  $("append").onclick=()=>attempt(()=>{if(!route.length)throw Error("Save the destination first");if(route.length>=3)throw Error("Maximum three targets");const t=formTarget();addLibrary(t);route.unshift(t);active=0;select();autoSave();clearForm()});
   $("next").onclick=()=>{if(active+1<route.length){active++;select()}};
   $("clearTarget").onclick=()=>{route=[];active=0;select();for(const id of ["distance","bearing","slope","heightDiff","eta","etaNote"])$(id).textContent="—";$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash")};
   $("here").onclick=()=>attempt(()=>{if(!state.fix||Date.now()-state.fix.timestamp>15000)throw Error("Fresh GPS fix required");fill({name:"HERE",lat:state.fix.latitude,lon:state.fix.longitude,elevation:Number.isFinite(state.fix.altitude)?Math.round(state.fix.altitude*FT_PER_METRE):null});});
   $("importPoints").onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(!Array.isArray(data)||!data.every(t=>typeof t.name==="string"&&Number.isFinite(t.lat)&&Math.abs(t.lat)<=90&&Number.isFinite(t.lon)&&Math.abs(t.lon)<=180))throw Error("Expected array of name, lat, lon records");points=data;localStorage.setItem("tvPoints",JSON.stringify(points));alert(`${points.length} points imported; verify cycle and coordinates.`)}catch(e){alert(e.message)}};
   $("findPoint").onclick=()=>attempt(()=>{const matches=points.filter(t=>t.name.toUpperCase()===$("lookup").value.trim().toUpperCase());if(matches.length!==1)throw Error(matches.length?"Ambiguous identifier; enter coordinates manually":"No matching imported waypoint");fill({...matches[0],elevation:null})});
   $("findWords").onclick=async()=>{try{const words=$("words").value.trim().replace(/^\/\/\//,"");if(!$("wkey").value)throw Error("API key required");const r=await fetch("https://api.what3words.com/v3/convert-to-coordinates?"+new URLSearchParams({words,key:$("wkey").value}));const d=await r.json();if(!r.ok||!d.coordinates)throw Error(d.error?.message||"Lookup failed");if(d.country!=="GB"&&!confirm(`Result country: ${d.country}. Use it?`))return;fill({name:words,lat:d.coordinates.lat,lon:d.coordinates.lng,elevation:null})}catch(e){alert(e.message)}};
-  function listSaved(){$("savedRoutes").replaceChildren(...Object.keys(saved).map(k=>new Option(k,k)))}
+  function previewRoute(){const r=saved[$("savedRoutes").value];$("savedPreview").textContent=r?r.map(t=>`${nameOf(t)} (${t.elevation??"?"} ft)`).join(" → "):"No saved route selected";}
+  $("savedRoutes").onchange=previewRoute;
+  function listSaved(){const old=$("savedRoutes").value;$("savedRoutes").replaceChildren(new Option("Choose a saved route",""),...Object.keys(saved).map(k=>new Option(k,k)));$("savedRoutes").value=old;previewRoute();}
   $("remember").onclick=()=>{if(!route.length)return;const name=prompt("Route name");if(name){saved[name]=route.map(t=>({...t}));localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved()}};
   $("recall").onclick=()=>{const r=saved[$("savedRoutes").value];if(r){route=r.map(t=>({...t}));active=0;select();clearForm()}};
   let wake=null;async function keepAwake(){if(state.watchId===null||document.hidden)return;try{if(!wake||wake.released)wake=await navigator.wakeLock.request("screen");$("wakeStatus").textContent="Screen wake lock active"}catch(e){$("wakeStatus").textContent="Wake lock unavailable; check Auto-Lock settings"}}
@@ -205,7 +217,7 @@
     }
   } catch (_) { localStorage.removeItem("trueVectorTarget"); }
 
-  try {const r=JSON.parse(localStorage.getItem("tvRoute")||"null");route=r?.route|| (state.target?[state.target]:[]);active=r?.active||0;points=JSON.parse(localStorage.getItem("tvPoints")||"[]");saved=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvSaved")||"{}"));listSaved();select();clearForm();}catch(e){}
+  try {const r=JSON.parse(localStorage.getItem("tvRoute")||"null");route=r?.route|| (state.target?[state.target]:[]);active=r?.active||0;points=JSON.parse(localStorage.getItem("tvPoints")||"[]");saved=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvSaved")||"{}"));library=JSON.parse(localStorage.getItem("tvLibrary")||"[]");for(const t of [...route,...Object.values(saved).flat()])addLibrary(t);listLibrary();listSaved();select();clearForm();}catch(e){$("libraryStatus").textContent="Could not restore local data: "+e.message;}
   setInterval(()=>{if(state.fix&&Date.now()-state.fix.timestamp>=15000){$("distance").dataset.confidence="poor";setConfidence("poor","Stale GPS fix");$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");$("gs").textContent="GS — kt";$("eta").textContent="--:--";}},1000);
   for(const id of ["angle","flash"]){const v=localStorage.getItem("tv-"+id);if(v!==null)$(id).value=v;$(id).onchange=()=>{localStorage.setItem("tv-"+id,$(id).value);if(state.fix)render()}}
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
