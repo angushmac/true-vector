@@ -13,7 +13,7 @@
 <body>
   <main class="app">
     <header class="topbar">
-      <div class="brand">TRUE VECTOR <span class="version">V1.0</span></div>
+      <div class="brand">TRUE VECTOR <span class="version">V2.0 LITE · BETA</span></div>
       <div class="status" id="gpsStatus" role="status" aria-live="polite">GPS NOT STARTED</div>
     </header>
 
@@ -26,14 +26,14 @@
     <section class="readouts" aria-label="Navigation information">
       <div class="distance-block">
         <div class="eyebrow">DISTANCE</div>
-        <div class="distance-value"><span id="distance">—.—</span><small>NM</small></div>
+        <div class="distance-value"><span id="distance">—.—</span><small>NM</small><span id="pointer" aria-label="Track relative direction">↑</span></div>
         <div class="bearing-line">TRUE BEARING <strong id="bearing">——°T</strong></div>
       </div>
 
       <div class="metric slope-metric" id="slopeMetric" data-confidence="none">
         <div class="metric-label">SLOPE</div>
         <div class="metric-value" id="slope">—</div>
-        <div class="metric-note" id="slopeNote">Target elevation required</div>
+        <div id="papi" aria-label="Simulated PAPI">● ● ● ●</div><div class="metric-note" id="slopeNote">Target elevation required</div>
       </div>
 
       <div class="metric height-metric" id="heightMetric" data-confidence="none">
@@ -44,7 +44,7 @@
 
       <div class="metric eta-metric">
         <div class="metric-label">TIME TO TARGET</div>
-        <div class="eta-value" id="eta">--:--</div>
+        <div class="eta-value" id="eta">--:--</div><div id="gs">GS — kt</div>
         <div class="metric-note" id="etaNote">Waiting for closing movement</div>
       </div>
     </section>
@@ -62,22 +62,26 @@
         <div class="field-grid">
           <div>
             <label for="latitude">Latitude (decimal degrees)</label>
-            <input id="latitude" type="number" step="any" min="-90" max="90" placeholder="51.8942" required>
+            <input id="latitude" type="text" placeholder="51.8942" required>
           </div>
           <div>
             <label for="longitude">Longitude (decimal degrees)</label>
-            <input id="longitude" type="number" step="any" min="-180" max="180" placeholder="-2.1672" required>
+            <input id="longitude" type="text" placeholder="-2.1672" required>
           </div>
         </div>
         <label for="targetElevation">Target elevation (ft AMSL, optional)</label>
         <input id="targetElevation" type="number" step="1" placeholder="e.g. 100">
         <div class="form-actions">
-          <button type="submit" class="primary">Set target</button>
+          <button type="submit" class="primary">Set target / replace route</button>
           <button type="button" id="clearTarget" class="secondary">Clear</button>
         </div>
-        <p class="help">Coordinates are decimal degrees. West and south are negative. Elevation must be in feet AMSL.</p>
+        <div class="form-actions"><button type="button" id="here">HERE</button><button type="button" id="append">Add next target</button></div>
+        <label>UK waypoint identifier (imported data)</label><input id="lookup" type="text" placeholder="I-GOS / SOSAB"><button type="button" id="findPoint">Find waypoint</button><label>Import verified waypoint JSON</label><input id="importPoints" type="file" accept=".json">
+        <label>what3words (online, own API key)</label><input id="words" type="text" placeholder="word.word.word"><input id="wkey" type="password" placeholder="API key (not saved)"><button type="button" id="findWords">Resolve words</button>
+        <div id="routeList"></div><label>Saved routes</label><select id="savedRoutes"></select><div class="form-actions"><button type="button" id="remember">Remember route</button><button type="button" id="recall">Recall</button><button type="button" id="next">Next manually</button></div>
+        <p class="help">Decimal degrees or degrees:minutes:seconds with optional N/S/E/W. Target altitude in feet; verify datum. Automatic sequencing is experimental.</p>
       </form>
-      <div class="settings-row">
+      <div class="settings-row"><label>Simulated PAPI angle (degrees)</label><input id="angle" type="number" min="1" max="10" step="0.1" value="3.5"><label>Height flash threshold (ft)</label><input id="flash" type="number" min="0" value="400"><div id="wakeStatus"></div></div><div class="settings-row">
         <label class="check-label"><input type="checkbox" id="useBaro" disabled> Use barometric altitude (not available in this browser)</label>
       </div>
       <div class="form-actions gps-actions">
@@ -88,7 +92,7 @@
 
     <footer>
       <div id="datumWarning" class="warning">Altitude note: browser GPS altitude may be referenced to the WGS‑84 ellipsoid, while target elevation is AMSL. Slope is therefore indicative unless the altitude datums are known to match.</div>
-      <div class="footer-note">Informational aid only — not approved navigation equipment.</div>
+      <div class="footer-note">BETA — UNTESTED. Experimental situational-awareness display only. Not for flight navigation, approach guidance, terrain clearance or operational decisions. Simulated PAPI is not a real PAPI.</div>
       <div class="footer-note" id="installHint"></div>
     </footer>
   </main>
