@@ -1,4 +1,4 @@
-# True Vector v3.4c Lite — BETA / UNTESTED
+# True Vector v3.4d Lite — BETA / UNTESTED
 Replace the existing GitHub Pages files with the contents of this folder. Open over HTTPS and reload after the service worker updates. Start GPS. This is experimental, not for flight navigation or approach guidance.
 
 Target form: enter coordinates (decimal or D:M:S with hemisphere), altitude in feet, then Set target. Add next target appends up to three. HERE fills the form from a fresh fix; confirm with Set or Add. Remember route stores a named route locally on this browser/device; Recall restores it. Browser storage can be cleared. Next manually overrides experimental automatic sequencing, which requires a close pass and movement away; it may miss a waypoint or advance incorrectly.
@@ -33,3 +33,6 @@ Route editor Remove buttons remove only the selected draft target, compacting th
 
 ## v3.4c Lite
 Optional route-specific final glide angle (1–10 degrees) in route editor and RNP import. Blank uses global default. Stored separately from legacy route arrays; activated route retains its angle until cleared or reactivated. Next track shows the initial true bearing from active waypoint to following waypoint, rounded to one degree, alongside the secondary arrow. Experimental only.
+
+## v3.4d Lite
+Destination lights use angular deviation from the selected glide angle, with exact 10 and 30 arcminute boundaries. Desired angles are clamped to 2.6–6 degrees, including legacy saved angles. Intermediate profile lights unchanged. Geometric GPS simulation only; no runway PAPI calibration or operational validation.

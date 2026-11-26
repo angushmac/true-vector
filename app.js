@@ -102,7 +102,8 @@
       $("heightDiff").classList.toggle("flash",fresh&&Math.abs(heightFeet)<Number($("flash").value));
       const prev=route[active-1], intermediate=active<route.length-1;
       let reference=null;
-      if(!intermediate){const angle=validAngle(routeAngle)?routeAngle:Number($("angle").value);if(angle>=1&&angle<=10)reference=state.target.elevation+result.metres*FT_PER_METRE*Math.tan(angle*Math.PI/180);}
+      const desiredAngle=clampAngle(routeAngle)??clampAngle(Number($("angle").value))??3.5;
+      if(!intermediate){if(result.metres>0)reference=state.target.elevation+result.metres*FT_PER_METRE*Math.tan(desiredAngle*Math.PI/180);}
       else if(prev&&Number.isFinite(prev.elevation)){
         const leg=distanceAndBearing(prev.lat,prev.lon,state.target.lat,state.target.lon);
         const pos=distanceAndBearing(prev.lat,prev.lon,latitude,longitude);
@@ -110,7 +111,7 @@
         if(leg.metres>0&&along>=-accuracy&&along<=leg.metres+accuracy)reference=prev.elevation+(state.target.elevation-prev.elevation)*Math.max(0,Math.min(1,along/leg.metres));
       }
       const delta=altitude*FT_PER_METRE-reference;
-      const whites=intermediate?(delta>100?4:delta>50?3:delta>=0?2:delta>=-50?1:0):(delta>100?4:delta>50?3:delta>=-50?2:delta>=-100?1:0);
+      const whites=intermediate?(delta>100?4:delta>50?3:delta>=0?2:delta>=-50?1:0):destinationWhites(-slope-desiredAngle);
       $("papi").classList.toggle("destination",!intermediate);
       $("papi").classList.toggle("intermediate",intermediate);
       $("papi").setAttribute("aria-label",intermediate?"Experimental intermediate altitude deviation lights":"Experimental destination angle lights");
@@ -145,8 +146,10 @@
   }
 
   let route=[], active=0, points=[], saved={}, routeName="", routeAngle=null, savedAngles=Object.create(null);
-  function validAngle(v){return typeof v==="number"&&Number.isFinite(v)&&v>=1&&v<=10;}
-  function readRouteAngle(id){const raw=$(id).value.trim();if(!raw)return null;const v=Number(raw);if(!validAngle(v))throw Error("Glide angle must be between 1 and 10 degrees");return v;}
+  function clampAngle(v){return typeof v==="number"&&Number.isFinite(v)?Math.max(2.6,Math.min(6,v)):null;}
+  function validAngle(v){return clampAngle(v)===v&&v!==null;}
+  function destinationWhites(deltaDegrees){const minutes=deltaDegrees*60, eps=1e-9;return minutes>30+eps?4:minutes>10+eps?3:minutes>=-10-eps?2:minutes>=-30-eps?1:0;}
+  function readRouteAngle(id){const raw=$(id).value.trim();if(!raw)return null;const v=clampAngle(Number(raw));if(v===null)throw Error("Enter a numeric glide angle");$(id).value=v;return v;}
   function persistAngles(){localStorage.setItem("tvRouteAngles",JSON.stringify(savedAngles));}
   let library=[], editing=null;
   const sameTarget=(a,b)=>a.name===b.name&&a.lat===b.lat&&a.lon===b.lon&&(a.elevation??null)===(b.elevation??null);
@@ -262,9 +265,9 @@
     }
   } catch (_) { localStorage.removeItem("trueVectorTarget"); }
 
-  try {const r=JSON.parse(localStorage.getItem("tvRoute")||"null");route=r?.route|| (state.target?[state.target]:[]);active=r?.active||0;routeName=r?.routeName||"";routeAngle=validAngle(r?.routeAngle)?r.routeAngle:null;savedAngles=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvRouteAngles")||"{}"));points=JSON.parse(localStorage.getItem("tvPoints")||"[]");saved=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvSaved")||"{}"));library=JSON.parse(localStorage.getItem("tvLibrary")||"[]");if(localStorage.getItem("tvLibrary")===null)for(const t of [...route,...Object.values(saved).flat()])addLibrary(t);listLibrary();listSaved();select();clearForm();}catch(e){$("libraryStatus").textContent="Could not restore local data: "+e.message;}
+  try {const r=JSON.parse(localStorage.getItem("tvRoute")||"null");route=r?.route|| (state.target?[state.target]:[]);active=r?.active||0;routeName=r?.routeName||"";routeAngle=clampAngle(r?.routeAngle);savedAngles=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvRouteAngles")||"{}"));for(const k of Object.keys(savedAngles))savedAngles[k]=clampAngle(savedAngles[k]);persistAngles();points=JSON.parse(localStorage.getItem("tvPoints")||"[]");saved=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvSaved")||"{}"));library=JSON.parse(localStorage.getItem("tvLibrary")||"[]");if(localStorage.getItem("tvLibrary")===null)for(const t of [...route,...Object.values(saved).flat()])addLibrary(t);listLibrary();listSaved();select();clearForm();}catch(e){$("libraryStatus").textContent="Could not restore local data: "+e.message;}
   setInterval(()=>{if(state.fix&&Date.now()-state.fix.timestamp>=15000){$("distance").dataset.confidence="poor";setConfidence("poor","Stale GPS fix");$("nextTrack").style.visibility="hidden";$("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");$("gs").textContent="GS — kt";$("eta").textContent="--:--";}},1000);
-  for(const id of ["angle","flash"]){const v=localStorage.getItem("tv-"+id);if(v!==null)$(id).value=v;$(id).onchange=()=>{localStorage.setItem("tv-"+id,$(id).value);if(state.fix)render()}}
+  for(const id of ["angle","flash"]){const v=localStorage.getItem("tv-"+id);if(v!==null)$(id).value=v;if(id==="angle")$(id).value=clampAngle(Number($(id).value))??3.5;$(id).onchange=()=>{if(id==="angle")$(id).value=$(id).value.trim()?clampAngle(Number($(id).value))??3.5:3.5;localStorage.setItem("tv-"+id,$(id).value);if(state.fix)render()}}
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
   }

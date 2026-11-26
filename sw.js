@@ -1,4 +1,4 @@
-const CACHE = "true-vector-v3.4c-lite";
+const CACHE = "true-vector-v3.4d-lite";
 const ASSETS = ["./","./index.html","./styles.css","./app.js","./manifest.webmanifest","./icon.svg"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
