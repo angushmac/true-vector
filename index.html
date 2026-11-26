@@ -13,9 +13,13 @@
 <body>
   <main class="app">
     <header class="topbar">
-      <div class="brand">TRUE VECTOR <span class="version">V3.3 LITE · BETA</span></div>
+      <div class="brand">TRUE VECTOR <span class="version">V3.4 LITE · BETA</span></div>
       <div class="status" id="gpsStatus" role="status" aria-live="polite">GPS NOT STARTED</div>
-    </header>
+    </header>      <div class="form-actions gps-actions">
+        <button type="button" id="startGps" class="primary">Start GPS</button>
+        <button type="button" id="stopGps" class="secondary" disabled>Stop GPS</button>
+      <button id="back">Back</button><button id="next">Fwd</button></div>
+
 
     <section class="target-panel" aria-label="Selected target">
       <div class="eyebrow">ROUTE / ACTIVE TARGET</div>
@@ -26,7 +30,7 @@
     <section class="readouts" aria-label="Navigation information">
       <div class="distance-block">
         <div class="eyebrow">DISTANCE</div>
-        <div class="distance-value"><span id="distance">—.—</span><small>NM</small><span id="pointer" aria-label="Track relative direction">↑</span></div>
+        <div class="distance-value"><span id="distance">—.—</span><small>NM</small><span id="pointer" aria-label="Track relative direction">↑</span><span id="secondaryArrow" aria-label="Bearing to following target">↑</span></div>
         <div class="bearing-line">TRUE BEARING <strong id="bearing">——°T</strong></div>
       </div>
 
@@ -39,7 +43,7 @@
       <div class="metric height-metric" id="heightMetric" data-confidence="none">
         <div class="metric-label">HEIGHT DIFFERENCE</div>
         <div class="metric-value" id="heightDiff">—</div>
-        <div class="metric-note" id="heightNote">Feet</div>
+        <div class="metric-note" id="heightNote">Feet</div><div class="gps-alt-label">GPS ALTITUDE <strong id="gpsAltitude">—</strong></div>
       </div>
 
       <div class="metric eta-metric">
@@ -50,22 +54,18 @@
     </section>
 
     <section class="bearing-strip">
-      <span>POSITION ACCURACY <strong id="positionAccuracy">—</strong></span>
-      <span>GPS ALTITUDE <strong id="gpsAltitude">—</strong></span>
+      <span>LAT/LON &amp; ALT ACCURACY <strong id="positionAccuracy">—</strong></span>
+      
     </section>
 
     <details class="controls" open>
       <summary>Target &amp; settings</summary>
-      <section class="library-panel"><h3>1. Routes</h3><label for="savedRoutes">Saved routes</label><select id="savedRoutes"></select><div id="savedPreview" class="help"></div><div class="form-actions"><button id="recall" class="primary">Use route</button><button id="editRoute">Edit route</button><button id="newRoute">Create route</button><button id="clearTarget">Clear active route</button><button id="deleteRoute">Delete saved route</button><button id="next">Next manually</button></div>
-      <div id="routeEditor" hidden><label for="routeName">Route name (defaults to destination)</label><input id="routeName" maxlength="80"><p class="help">Choose stored targets. Destination first; preceding waypoints are optional.</p><label for="dest">Destination</label><select id="dest"></select><label for="finalWp">Final waypoint (optional)</label><select id="finalWp"></select><label for="initialWp">Initial waypoint (optional)</label><select id="initialWp"></select><div class="form-actions"><button id="saveRoute" class="primary">Save route</button><button id="cancelRoute">Cancel</button></div></div><div id="routeList" class="help"></div></section>
-      <section class="library-panel"><h3>2. Targets</h3><label for="targetLibrary">Stored targets</label><select id="targetLibrary"></select><div class="form-actions"><button id="newTarget">Create target</button><button id="loadTarget">Edit / inspect target</button><button id="useTarget" class="primary">Use target directly</button><button id="deleteTarget">Delete target</button></div><div id="libraryStatus" class="help" role="status"></div>
+      <section class="library-panel"><h3>1. Routes</h3><label for="savedRoutes">Saved routes</label><input type="text" id="routeSearch" placeholder="Search routes" aria-label="Search routes"><select id="savedRoutes"></select><div id="savedPreview" class="help"></div><div class="form-actions"><button id="recall" class="primary">Use route</button><button id="editRoute">Edit route</button><button id="newRoute">Create route</button><button id="clearTarget">Clear active route</button><button id="deleteRoute">Delete saved route</button></div>
+      <div id="routeEditor" hidden><label for="routeName">Route name (defaults to destination)</label><input id="routeName" maxlength="80"><p class="help">Choose stored targets. Destination first; preceding waypoints are optional.</p><label for="dest">Destination</label><select id="dest"></select><label for="finalWp">Final waypoint (optional)</label><select id="finalWp"></select><label for="initialWp">Earlier waypoint (optional)</label><select id="initialWp"></select><label for="wp4">Earlier waypoint (optional)</label><select id="wp4"></select><label for="wp5">First waypoint (optional)</label><select id="wp5"></select><div class="form-actions"><button id="saveRoute" class="primary">Save route</button><button id="cancelRoute">Cancel</button></div></div><details><summary>Paste RNP table (experimental)</summary><label for="rnpTitle">Route title</label><input id="rnpTitle" type="text"><label for="rnpText">Paste table text</label><textarea id="rnpText" rows="8"></textarea><button id="rnpPreview">Preview import</button><pre id="rnpReview"></pre><button id="rnpSave" disabled>Save reviewed route</button></details><div id="routeList" class="help"></div></section>
+      <section class="library-panel"><h3>2. Targets</h3><label for="targetLibrary">Stored targets</label><input type="text" id="targetSearch" placeholder="Search targets" aria-label="Search targets"><select id="targetLibrary"></select><div class="form-actions"><button id="newTarget">Create target</button><button id="loadTarget">Edit / inspect target</button><button id="useTarget" class="primary">Use target directly</button><button id="deleteTarget">Delete target</button></div><div id="libraryStatus" class="help" role="status"></div>
       <form id="targetForm"><label for="targetName">Target name</label><input id="targetName" maxlength="40" required><div class="field-grid"><div><label for="latitude">Latitude</label><input id="latitude" required></div><div><label for="longitude">Longitude</label><input id="longitude" required></div></div><label for="targetElevation">Target elevation (ft AMSL, optional)</label><input id="targetElevation" type="number" step="1"><div class="form-actions"><button type="submit" id="storeTarget" class="primary">Save new target</button><button type="button" id="updateStored" disabled>Save target changes</button><button type="button" id="here">HERE — capture and name</button></div><p class="help">Decimal degrees or degrees:minutes:seconds. Verify coordinates and altitude datum. Saved routes retain their own target details.</p></form></section>
       <div class="settings-row"><label>Destination simulated PAPI angle (degrees)</label><input id="angle" type="number" min="1" max="10" step="0.1" value="3.5"><label>Height flash threshold (ft)</label><input id="flash" type="number" min="0" value="400"><div id="wakeStatus"></div></div><div class="settings-row">
         <label class="check-label"><input type="checkbox" id="useBaro" disabled> Use barometric altitude (not available in this browser)</label>
-      </div>
-      <div class="form-actions gps-actions">
-        <button type="button" id="startGps" class="primary">Start GPS</button>
-        <button type="button" id="stopGps" class="secondary" disabled>Stop GPS</button>
       </div>
       <details class="lookup-tools"><summary>Waypoint database / what3words</summary>        <label>UK waypoint identifier (imported data)</label><input id="lookup" type="text" placeholder="I-GOS / SOSAB"><button type="button" id="findPoint">Find waypoint</button><label>Import verified waypoint JSON</label><input id="importPoints" type="file" accept=".json">
         <label>what3words (online, own API key)</label><input id="words" type="text" placeholder="word.word.word"><input id="wkey" type="password" placeholder="API key (not saved)"><button type="button" id="findWords">Resolve words</button>

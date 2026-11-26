@@ -61,3 +61,5 @@ input[type=password],select{width:100%;min-height:44px;background:#0e171e;color:
 
 #gs,#gpsAltitude,.bearing-line strong{font-size:20px;font-weight:700}.bearing-line{font-size:14px}.eta-metric{padding-right:100px;padding-left:100px}.library-panel{display:grid;gap:7px;border-bottom:1px solid var(--line);padding:10px 0;margin-bottom:8px}.wide{width:100%}.form-actions{flex-wrap:wrap}
 #routeEditor[hidden]{display:none} #routeEditor{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:8px} .library-panel h3{margin:4px 0;font-size:18px}
+#secondaryArrow{font-size:30px;color:var(--accent);display:inline-block;visibility:hidden;line-height:1;letter-spacing:0}#gs{color:white}#gs::first-letter{color:inherit}#etaNote strong{color:white;font-size:20px}#papi.destination{border-bottom:2px solid var(--muted);padding-bottom:3px}.gps-alt-label{color:var(--muted);font-size:11px;margin-top:8px}.gps-alt-label strong{color:white;display:block}textarea{width:100%;background:#0e171e;color:white;font:inherit}#rnpReview{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.gps-actions{margin-bottom:10px}
+.gs-label{color:var(--muted)}

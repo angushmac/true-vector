@@ -5,6 +5,8 @@
   const FT_PER_METRE = 3.280839895;
   const state = { target:null, watchId:null, fix:null, previousRange:null, previousTime:null, closingRates:[], lastEta:null };
 
+  const trunc5 = n => Number(String(n).includes("e")?Math.trunc(n*100000)/100000:String(n).replace(/(\.\d{5})\d+$/, "$1"));
+  const sortName = (a,b) => a.localeCompare(b,"en",{numeric:true,sensitivity:"base"});
   const fmt = (n, digits=1) => Number.isFinite(n) ? n.toFixed(digits) : "—";
   const norm360 = n => (n % 360 + 360) % 360;
   const roundTo2 = n => Math.round(n / 2) * 2;
@@ -53,7 +55,7 @@
       const median=sorted[Math.floor(sorted.length/2)];
       const eta=range/median;
       $("eta").textContent=formatEta(eta);
-      $("etaNote").textContent=`Closing at ${(median*1.943844).toFixed(1)} kt`;
+      $("etaNote").replaceChildren(document.createTextNode("Closing at "),Object.assign(document.createElement("strong"),{textContent:`${(median*1.943844).toFixed(1)} kt`}));
     } else {
       $("eta").textContent="--:--";
       $("etaNote").textContent=state.closingRates.length ? "Establishing closing rate" : "Waiting for closing movement";
@@ -72,9 +74,10 @@
     $("distance").dataset.confidence=!fresh||!Number.isFinite(accuracy)||accuracy>30?"poor":accuracy<=10?"good":"moderate";
     $("pointer").style.visibility=fresh&&Number.isFinite(state.track)&&result.metres>accuracy?"visible":"hidden";
     $("pointer").style.transform=`rotate(${result.bearing-state.track}deg)`;
-    $("gs").textContent=fresh&&Number.isFinite(state.speed)?`GS ${(state.speed*1.943844).toFixed(0)} kt`:"GS — kt";
+    $("gs").replaceChildren(Object.assign(document.createElement("span"),{textContent:"GS ",className:"gs-label"}),document.createTextNode(fresh&&Number.isFinite(state.speed)?`${(state.speed*1.943844).toFixed(0)} kt`:"— kt"));
+    const following=route[active+1], arrow=$("secondaryArrow"); arrow.style.visibility=following&&nm<=0.5&&fresh&&Number.isFinite(state.track)&&accuracy<=30?"visible":"hidden"; if(following)arrow.style.transform=`rotate(${distanceAndBearing(latitude,longitude,following.lat,following.lon).bearing-state.track}deg)`;
 
-    $("positionAccuracy").textContent=Number.isFinite(accuracy) ? `±${Math.round(accuracy)} m` : "Unknown";
+    $("positionAccuracy").textContent=Number.isFinite(accuracy) ? `Horizontal ±${Math.round(accuracy)} m | Vertical ${Number.isFinite(altitudeAccuracy)?"±"+Math.round(altitudeAccuracy*FT_PER_METRE)+" ft":"unknown"}` : "Unknown";
     $("gpsAltitude").textContent=Number.isFinite(altitude) ? `${Math.round(altitude*FT_PER_METRE)} ft (GPS)` : "Unavailable";
 
     if (Number.isFinite(state.target.elevation) && Number.isFinite(altitude)) {
@@ -97,11 +100,20 @@
       }
       setConfidence(fresh?confidence:"poor",fresh?note:"Stale GPS fix");
       $("heightDiff").classList.toggle("flash",fresh&&Math.abs(heightFeet)<Number($("flash").value));
-      const angle=Number($("angle").value), intermediate=active<route.length-1, delta=intermediate?-heightFeet/100:-slope-angle;
-      const whites=delta>0.5?4:delta>0.2?3:delta< -0.5?0:delta< -0.2?1:2;
-      $("papi").setAttribute("aria-label",intermediate?"Experimental altitude deviation lights":"Simulated geometric slope lights");
+      const prev=route[active-1], intermediate=active<route.length-1;
+      let reference=null;
+      if(prev&&Number.isFinite(prev.elevation)){
+        const leg=distanceAndBearing(prev.lat,prev.lon,state.target.lat,state.target.lon);
+        const pos=distanceAndBearing(prev.lat,prev.lon,latitude,longitude);
+        const along=pos.metres*Math.cos((pos.bearing-leg.bearing)*Math.PI/180);
+        if(leg.metres>0&&along>=0&&along<=leg.metres)reference=prev.elevation+(state.target.elevation-prev.elevation)*along/leg.metres;
+      } else if(!prev&&!intermediate){const angle=Number($("angle").value);if(angle>=1&&angle<=10)reference=state.target.elevation+result.metres*FT_PER_METRE*Math.tan(angle*Math.PI/180);}
+      const delta=altitude*FT_PER_METRE-reference;
+      const whites=delta>100?4:delta>50?3:delta>=0?2:delta>=-50?1:0;
+      $("papi").classList.toggle("destination",!intermediate);
+      $("papi").setAttribute("aria-label","Experimental altitude deviation lights");
       $("papi").replaceChildren(...Array.from({length:4},(_,i)=>{const e=document.createElement("span");e.textContent="●";e.style.color=i<whites?"white":"#ff5555";return e;}));
-      $("papi").style.visibility=fresh&&confidence!=="poor"&&(intermediate||(heightFeet<0&&result.metres>accuracy&&angle>=1&&angle<=10))?"visible":"hidden";
+      $("papi").style.visibility=fresh&&confidence!=="poor"&&reference!==null?"visible":"hidden";
     } else {
       $("slope").textContent="—";
       $("heightDiff").textContent="—";
@@ -129,7 +141,7 @@
   let library=[], editing=null;
   const sameTarget=(a,b)=>a.name===b.name&&a.lat===b.lat&&a.lon===b.lon&&(a.elevation??null)===(b.elevation??null);
   function persistLibrary(){localStorage.setItem("tvLibrary",JSON.stringify(library));}
-  function listLibrary(){for(const id of ["targetLibrary","dest","finalWp","initialWp"]){const el=$(id),old=el.value;el.replaceChildren(new Option(id==="targetLibrary"?"Choose a stored target":"Choose target / none", ""),...library.map((t,i)=>new Option(`${nameOf(t)} | ${t.elevation??"?"} ft | ${t.lat.toFixed(5)}, ${t.lon.toFixed(5)}`,String(i))));el.value=old;}}
+  function listLibrary(){for(const id of ["targetLibrary","dest","finalWp","initialWp","wp4","wp5"]){const el=$(id),old=el.value;el.replaceChildren(new Option(id==="targetLibrary"?"Choose a stored target":"Choose target / none", ""),...library.map((t,i)=>({t,i})).filter(({t,i})=>id!=="targetLibrary"||String(i)===old||nameOf(t).toLowerCase().includes($("targetSearch").value.toLowerCase())).sort((a,b)=>sortName(nameOf(a.t),nameOf(b.t))).map(({t,i})=>new Option(`${nameOf(t)} | ${t.elevation??"?"} ft | ${t.lat.toFixed(5)}, ${t.lon.toFixed(5)}`,String(i))));el.value=old;}}
   function addLibrary(t){let i=library.findIndex(x=>sameTarget(x,t));if(i<0){library.push({...t});i=library.length-1;persistLibrary();}listLibrary();return i;}
   function chosen(){const v=$("targetLibrary").value;if(v===""||!library[Number(v)])throw Error("Choose a stored target first");return Number(v);}
   $("loadTarget").onclick=()=>attempt(()=>{editing=chosen();fill(library[editing]);$("updateStored").disabled=false;$("storeTarget").disabled=true;$("libraryStatus").textContent="Editing target. Save target changes when finished.";});
@@ -149,13 +161,15 @@
     if(h.length&&t.startsWith("-")&&/[NE]/.test(h[0]))return NaN;
     const n=(t.startsWith("-")||/[SW]/.test(h[0]||"")?-1:1)*(Math.abs(v[0])+(v[1]||0)/60+(v[2]||0)/3600);return Math.abs(n)<=limit?n:NaN;
   }
-  function formTarget(){const lat=parseCoord($("latitude").value,90),lon=parseCoord($("longitude").value,180),t=$("targetElevation").value,elevation=t===""?null:Number(t);if(!Number.isFinite(lat)||!Number.isFinite(lon)||(t!==""&&!Number.isFinite(elevation)))throw Error("Invalid coordinates or altitude");return {name:$("targetName").value.trim(),lat,lon,elevation};}
-  function fill(t){$("targetName").value=t.name||"";$("latitude").value=t.lat;$("longitude").value=t.lon;$("targetElevation").value=t.elevation??"";}
+  function formTarget(){const lat=parseCoord($("latitude").value,90),lon=parseCoord($("longitude").value,180),t=$("targetElevation").value,elevation=t===""?null:Number(t);if(!Number.isFinite(lat)||!Number.isFinite(lon)||(t!==""&&!Number.isFinite(elevation)))throw Error("Invalid coordinates or altitude");return {name:$("targetName").value.trim(),lat:trunc5(lat),lon:trunc5(lon),elevation};}
+  function fill(t){$("targetName").value=t.name||"";$("latitude").value=trunc5(t.lat);$("longitude").value=trunc5(t.lon);$("targetElevation").value=t.elevation??"";}
   function resetEta(){state.previousRange=null;state.previousTime=null;state.closingRates=[];}
-  function select(){state.target=route[active]||null;resetEta();updateTargetSummary();saveTarget();localStorage.setItem("tvRoute",JSON.stringify({route,active}));$("routeProgress").replaceChildren(...route.map((t,i)=>{const el=document.createElement("div");el.className=i===active?"active-leg":"inactive-leg";el.textContent=`${i===active?"▶ ":""}${i+1}. ${nameOf(t)}${Number.isFinite(t.elevation)?` · ${t.elevation} ft`:""}${i===route.length-1?" · Destination":""}`;return el;}));$("routeList").textContent=route.map((t,i)=>`${i===active?"▶ ":""}${i+1}. ${t.name||t.lat+", "+t.lon}`).join(" · ");if(state.target&&state.fix)render();}
+  function select(){$("secondaryArrow").style.visibility="hidden";$("back").disabled=active===0;$("next").disabled=active+1>=route.length;state.target=route[active]||null;resetEta();updateTargetSummary();saveTarget();localStorage.setItem("tvRoute",JSON.stringify({route,active,routeName}));$("routeProgress").replaceChildren(...route.map((t,i)=>{const el=document.createElement("div");el.className=i===active?"active-leg":"inactive-leg";el.textContent=`${i===active?"▶ ":""}${i+1}. ${nameOf(t)}${Number.isFinite(t.elevation)?` · ${t.elevation} ft`:""}${i===route.length-1?" · Destination":""}`;return el;}));$("routeList").textContent=route.map((t,i)=>`${i===active?"▶ ":""}${i+1}. ${t.name||t.lat+", "+t.lon}`).join(" · ");if(state.target&&state.fix)render();}
   function attempt(fn){try{fn()}catch(e){alert(e.message)}}
+  $("back").onclick=()=>{if(active>0){active--;select()}};
+  $("routeSearch").oninput=listSaved;$("targetSearch").oninput=listLibrary;
   $("next").onclick=()=>{if(active+1<route.length){active++;select()}};
-  function clearActive(){route=[];active=0;routeName="";select();for(const id of ["distance","bearing","slope","heightDiff","eta","etaNote"])$(id).textContent="—";$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");}
+  function clearActive(){route=[];active=0;routeName="";select();for(const id of ["distance","bearing","slope","heightDiff","eta","etaNote"])$(id).textContent="—";$("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");}
   $("clearTarget").onclick=clearActive;
   $("here").onclick=()=>attempt(()=>{if(!state.fix||Date.now()-state.fix.timestamp>15000)throw Error("Fresh GPS fix required");const name=prompt("Name this captured location (required)","");if(!name||!name.trim()||name.trim().toUpperCase()==="HERE")return;clearForm();fill({name:name.trim(),lat:state.fix.latitude,lon:state.fix.longitude,elevation:Number.isFinite(state.fix.altitude)?Math.round(state.fix.altitude*FT_PER_METRE):null});$("libraryStatus").textContent="Captured. Check details and save new target.";});
   $("importPoints").onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(!Array.isArray(data)||!data.every(t=>typeof t.name==="string"&&Number.isFinite(t.lat)&&Math.abs(t.lat)<=90&&Number.isFinite(t.lon)&&Math.abs(t.lon)<=180))throw Error("Expected array of name, lat, lon records");points=data;localStorage.setItem("tvPoints",JSON.stringify(points));alert(`${points.length} points imported; verify cycle and coordinates.`)}catch(e){alert(e.message)}};
@@ -163,16 +177,23 @@
   $("findWords").onclick=async()=>{try{const words=$("words").value.trim().replace(/^\/\/\//,"");if(!$("wkey").value)throw Error("API key required");const r=await fetch("https://api.what3words.com/v3/convert-to-coordinates?"+new URLSearchParams({words,key:$("wkey").value}));const d=await r.json();if(!r.ok||!d.coordinates)throw Error(d.error?.message||"Lookup failed");if(d.country!=="GB"&&!confirm(`Result country: ${d.country}. Use it?`))return;fill({name:words,lat:d.coordinates.lat,lon:d.coordinates.lng,elevation:null})}catch(e){alert(e.message)}};
   function previewRoute(){const r=saved[$("savedRoutes").value];$("savedPreview").textContent=r?r.map(t=>`${nameOf(t)} (${t.elevation??"?"} ft)`).join(" → "):"No saved route selected";}
   $("savedRoutes").onchange=previewRoute;
-  function listSaved(){const old=$("savedRoutes").value;$("savedRoutes").replaceChildren(new Option("Choose a saved route",""),...Object.keys(saved).map(k=>new Option(k,k)));$("savedRoutes").value=old;previewRoute();}
+  function listSaved(){const old=$("savedRoutes").value;$("savedRoutes").replaceChildren(new Option("Choose a saved route",""),...Object.keys(saved).filter(k=>k===old||k.toLowerCase().includes($("routeSearch").value.toLowerCase())).sort(sortName).map(k=>new Option(k,k)));$("savedRoutes").value=old;previewRoute();}
   let editingRoute=null;
   function closeEditor(){$("routeEditor").hidden=true;editingRoute=null;}
-  function openEditor(key){editingRoute=key;const r=key===null?[]:saved[key];$("routeName").value=key??"";for(const [id,t] of [["dest",r.at(-1)],["finalWp",r.at(-2)],["initialWp",r.at(-3)]])$(id).value=t?String(addLibrary(t)):"";$("routeEditor").hidden=false;}
+  function openEditor(key){editingRoute=key;const r=key===null?[]:saved[key];$("routeName").value=key??"";for(const [id,t] of [["dest",r.at(-1)],["finalWp",r.at(-2)],["initialWp",r.at(-3)],["wp4",r.at(-4)],["wp5",r.at(-5)]])$(id).value=t?String(addLibrary(t)):"";$("routeEditor").hidden=false;}
   $("newRoute").onclick=()=>openEditor(null);
   $("editRoute").onclick=()=>attempt(()=>{const k=$("savedRoutes").value;if(!saved[k])throw Error("Choose a saved route");openEditor(k);});
   $("cancelRoute").onclick=closeEditor;
-  $("saveRoute").onclick=()=>attempt(()=>{if($("dest").value==="")throw Error("Choose a destination");const r=["initialWp","finalWp","dest"].map(id=>$(id).value).filter(v=>v!=="").map(v=>({...library[Number(v)]}));const k=$("routeName").value.trim()||nameOf(r.at(-1));if(k!==editingRoute&&saved[k]&&!confirm("Replace saved route "+k+"?"))return;if(editingRoute!==null&&editingRoute!==k)delete saved[editingRoute];saved[k]=r;localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved();$("savedRoutes").value=k;previewRoute();closeEditor();});
+  $("saveRoute").onclick=()=>attempt(()=>{if($("dest").value==="")throw Error("Choose a destination");const r=["wp5","wp4","initialWp","finalWp","dest"].map(id=>$(id).value).filter(v=>v!=="").map(v=>({...library[Number(v)]}));const k=$("routeName").value.trim()||nameOf(r.at(-1));if(k!==editingRoute&&saved[k]&&!confirm("Replace saved route "+k+"?"))return;if(editingRoute!==null&&editingRoute!==k)delete saved[editingRoute];saved[k]=r;localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved();$("savedRoutes").value=k;previewRoute();closeEditor();});
   $("deleteRoute").onclick=()=>attempt(()=>{const k=$("savedRoutes").value;if(!saved[k])throw Error("Choose a saved route");if(!confirm("Delete saved route "+k+"? Any active copy remains until cleared."))return;delete saved[k];localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved();closeEditor();});
   $("recall").onclick=()=>attempt(()=>{const k=$("savedRoutes").value,r=saved[k];if(!r)throw Error("Choose a saved route");route=r.map(t=>({...t}));routeName=k;active=0;select();});
+  let pendingImport=null;
+  function compactCoord(raw,limit){const m=raw.match(/^(\d{2,3})(\d{2})(\d{2}(?:\.\d+)?)([NSEW])$/i);if(!m||m[1].length!==(limit===90?2:3))throw Error("Invalid compact coordinate: "+raw);const n=parseCoord(`${m[1]} ${m[2]} ${m[3]}${m[4]}`,limit);if(!Number.isFinite(n))throw Error("Invalid coordinate: "+raw);return trunc5(n);}
+  function parseRnp(text){const rows=[...text.matchAll(/(?:^|\s)([A-Z0-9]+)\s+(\d{3})\s+([A-Z]{2})\s+/g)];if(!rows.length||rows[0][2]!=="001")throw Error("Expected sequence 001 and path terminator");const targets=[],notes=[];for(let i=0;i<rows.length;i++){const m=rows[i],body=text.slice(m.index+m[0].length,rows[i+1]?.index??text.length).trim();if(Number(m[2])!==i+1)throw Error("Non-consecutive sequence");if(!["IF","TF"].includes(m[3])){notes.push(`${m[2]} ${m[3]} excluded: unsupported path terminator`);if(i!==rows.length-1)throw Error("Unsupported non-final leg");continue;}const c=body.match(/(\d{6}(?:\.\d+)?[NS])\s+(\d{7}(?:\.\d+)?[EW])/i);if(!c)throw Error("Missing coordinates at "+m[2]);const fields=body.slice(0,c.index).trim().split(/\s+/);const name=fields[0],level=fields.at(-2);if(!name||name==="-"||!/^(-|\d+)$/.test(level))throw Error("Unrecognised name or level at "+m[2]);targets.push({name,lat:compactCoord(c[1],90),lon:compactCoord(c[2],180),elevation:level==="-"?null:Number(level),path:m[3],sequence:m[2]});}if(!targets.length||targets.length>5)throw Error("Expected one to five coordinate targets");return {targets,notes};}
+  function invalidateImport() {pendingImport=null;$("rnpSave").disabled=true;$("rnpReview").textContent="";}
+  $("rnpText").oninput=$("rnpTitle").oninput=invalidateImport;
+  $("rnpPreview").onclick=()=>{invalidateImport();attempt(()=>{const title=$("rnpTitle").value.trim();if(!title)throw Error("Enter route title");const {targets,notes}=parseRnp($("rnpText").value);pendingImport={title,targets};$("rnpReview").textContent=targets.map(t=>`${t.sequence} ${t.path} ${t.name} | ${t.lat}, ${t.lon} | ${t.elevation??"ALTITUDE UNKNOWN"}`).concat(notes,"Verify every coordinate and altitude. Plain text cannot preserve underlining or minimum constraints.").join("\n");$("rnpSave").disabled=false;});};
+  $("rnpSave").onclick=()=>attempt(()=>{if(!pendingImport)return;const {title,targets}=pendingImport;if(!confirm("Save experimental route after checking source data?"))return;if(saved[title]&&!confirm("Replace "+title+"?"))return;targets.forEach(addLibrary);saved[title]=targets;localStorage.setItem("tvSaved",JSON.stringify(saved));$("routeSearch").value="";listSaved();$("savedRoutes").value=title;previewRoute();invalidateImport();});
   let wake=null;async function keepAwake(){if(state.watchId===null||document.hidden)return;try{if(!wake||wake.released)wake=await navigator.wakeLock.request("screen");$("wakeStatus").textContent="Screen wake lock active"}catch(e){$("wakeStatus").textContent="Wake lock unavailable; check Auto-Lock settings"}}
   document.addEventListener("visibilitychange",keepAwake);
   function sequence(old){if(!old||active+1>=route.length||!state.target||!Number.isFinite(state.track))return;const t=state.target, a=distanceAndBearing(old.latitude,old.longitude,t.lat,t.lon),b=distanceAndBearing(state.fix.latitude,state.fix.longitude,t.lat,t.lon);const err=Math.max(old.accuracy,state.fix.accuracy);if(err>30||a.metres>Math.max(100,err*3)||b.metres<=a.metres)return;const diff=Math.abs(((b.bearing-state.track+540)%360)-180);if(diff>120){active++;select()}}
@@ -186,7 +207,7 @@
     $("gpsStatus").style.color="var(--green)";
     if (state.target) render();
     else {
-      $("positionAccuracy").textContent=Number.isFinite(c.accuracy)?`±${Math.round(c.accuracy)} m`:"Unknown";
+      $("positionAccuracy").textContent=Number.isFinite(c.accuracy)?`Horizontal ±${Math.round(c.accuracy)} m | Vertical ${Number.isFinite(c.altitudeAccuracy)?"±"+Math.round(c.altitudeAccuracy*FT_PER_METRE)+" ft":"unknown"}`:"Unknown";
       $("gpsAltitude").textContent=Number.isFinite(c.altitude)?`${Math.round(c.altitude*FT_PER_METRE)} ft (GPS)`:"Unavailable";
     }
   }
@@ -208,7 +229,7 @@
 
   $("stopGps").addEventListener("click", () => {
     if (state.watchId !== null) navigator.geolocation.clearWatch(state.watchId);
-    state.watchId=null; if(wake)wake.release(); $("wakeStatus").textContent="Screen wake lock released"; state.fix=null; $("heightDiff").classList.remove("flash"); $("pointer").style.visibility=$("papi").style.visibility="hidden"; $("distance").dataset.confidence="poor"; setConfidence("poor","GPS paused"); $("gs").textContent="GS — kt"; $("startGps").disabled=false; $("stopGps").disabled=true;
+    state.watchId=null; if(wake)wake.release(); $("wakeStatus").textContent="Screen wake lock released"; state.fix=null; $("heightDiff").classList.remove("flash"); $("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden"; $("distance").dataset.confidence="poor"; setConfidence("poor","GPS paused"); $("gs").textContent="GS — kt"; $("startGps").disabled=false; $("stopGps").disabled=true;
     $("gpsStatus").textContent="GPS PAUSED"; $("gpsStatus").style.color="var(--muted)";
   });
 
@@ -224,8 +245,8 @@
     }
   } catch (_) { localStorage.removeItem("trueVectorTarget"); }
 
-  try {const r=JSON.parse(localStorage.getItem("tvRoute")||"null");route=r?.route|| (state.target?[state.target]:[]);active=r?.active||0;points=JSON.parse(localStorage.getItem("tvPoints")||"[]");saved=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvSaved")||"{}"));library=JSON.parse(localStorage.getItem("tvLibrary")||"[]");if(localStorage.getItem("tvLibrary")===null)for(const t of [...route,...Object.values(saved).flat()])addLibrary(t);listLibrary();listSaved();select();clearForm();}catch(e){$("libraryStatus").textContent="Could not restore local data: "+e.message;}
-  setInterval(()=>{if(state.fix&&Date.now()-state.fix.timestamp>=15000){$("distance").dataset.confidence="poor";setConfidence("poor","Stale GPS fix");$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");$("gs").textContent="GS — kt";$("eta").textContent="--:--";}},1000);
+  try {const r=JSON.parse(localStorage.getItem("tvRoute")||"null");route=r?.route|| (state.target?[state.target]:[]);active=r?.active||0;routeName=r?.routeName||"";points=JSON.parse(localStorage.getItem("tvPoints")||"[]");saved=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvSaved")||"{}"));library=JSON.parse(localStorage.getItem("tvLibrary")||"[]");if(localStorage.getItem("tvLibrary")===null)for(const t of [...route,...Object.values(saved).flat()])addLibrary(t);listLibrary();listSaved();select();clearForm();}catch(e){$("libraryStatus").textContent="Could not restore local data: "+e.message;}
+  setInterval(()=>{if(state.fix&&Date.now()-state.fix.timestamp>=15000){$("distance").dataset.confidence="poor";setConfidence("poor","Stale GPS fix");$("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");$("gs").textContent="GS — kt";$("eta").textContent="--:--";}},1000);
   for(const id of ["angle","flash"]){const v=localStorage.getItem("tv-"+id);if(v!==null)$(id).value=v;$(id).onchange=()=>{localStorage.setItem("tv-"+id,$(id).value);if(state.fix)render()}}
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
