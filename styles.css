@@ -69,3 +69,6 @@ input[type=password],select{width:100%;min-height:44px;background:#0e171e;color:
 #pointer,#secondaryArrow,#papi{-webkit-user-select:none;user-select:none;pointer-events:none}
 
 .route-slot{display:flex;gap:8px;align-items:center}.route-slot select{flex:1;min-width:0}.route-slot button{flex:0 0 auto}
+
+.distance-value #nextTrack{font-size:12px;letter-spacing:0;white-space:nowrap;align-self:center;visibility:hidden;color:white;pointer-events:none;user-select:none}
+.distance-value{flex-wrap:wrap}
