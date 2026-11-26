@@ -102,18 +102,20 @@
       $("heightDiff").classList.toggle("flash",fresh&&Math.abs(heightFeet)<Number($("flash").value));
       const prev=route[active-1], intermediate=active<route.length-1;
       let reference=null;
-      if(prev&&Number.isFinite(prev.elevation)){
+      if(!intermediate){const angle=Number($("angle").value);if(angle>=1&&angle<=10)reference=state.target.elevation+result.metres*FT_PER_METRE*Math.tan(angle*Math.PI/180);}
+      else if(prev&&Number.isFinite(prev.elevation)){
         const leg=distanceAndBearing(prev.lat,prev.lon,state.target.lat,state.target.lon);
         const pos=distanceAndBearing(prev.lat,prev.lon,latitude,longitude);
         const along=pos.metres*Math.cos((pos.bearing-leg.bearing)*Math.PI/180);
         if(leg.metres>0&&along>=0&&along<=leg.metres)reference=prev.elevation+(state.target.elevation-prev.elevation)*along/leg.metres;
-      } else if(!prev&&!intermediate){const angle=Number($("angle").value);if(angle>=1&&angle<=10)reference=state.target.elevation+result.metres*FT_PER_METRE*Math.tan(angle*Math.PI/180);}
+      }
       const delta=altitude*FT_PER_METRE-reference;
-      const whites=delta>100?4:delta>50?3:delta>=0?2:delta>=-50?1:0;
+      const whites=intermediate?(delta>100?4:delta>50?3:delta>=0?2:delta>=-50?1:0):(delta>100?4:delta>50?3:delta>=-50?2:delta>=-100?1:0);
       $("papi").classList.toggle("destination",!intermediate);
-      $("papi").setAttribute("aria-label","Experimental altitude deviation lights");
-      $("papi").replaceChildren(...Array.from({length:4},(_,i)=>{const e=document.createElement("span");e.textContent="●";e.style.color=i<whites?"white":"#ff5555";return e;}));
-      $("papi").style.visibility=fresh&&confidence!=="poor"&&reference!==null?"visible":"hidden";
+      $("papi").classList.toggle("intermediate",intermediate);
+      $("papi").setAttribute("aria-label",intermediate?"Experimental intermediate altitude deviation lights":"Experimental destination angle lights");
+      $("papi").replaceChildren(...Array.from({length:4},(_,i)=>{const e=document.createElement("span");e.textContent="●";e.style.color=i<whites?"white":intermediate?"#ffdb55":"#ff5555";return e;}));
+      $("papi").style.visibility=fresh&&(intermediate?confidence==="good":confidence!=="poor")&&reference!==null?"visible":"hidden";
     } else {
       $("slope").textContent="—";
       $("heightDiff").textContent="—";
