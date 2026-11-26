@@ -67,3 +67,5 @@ input[type=password],select{width:100%;min-height:44px;background:#0e171e;color:
 #papi.intermediate::before{content:"(";color:var(--muted)}
 #papi.intermediate::after{content:")";color:var(--muted)}
 #pointer,#secondaryArrow,#papi{-webkit-user-select:none;user-select:none;pointer-events:none}
+
+.route-slot{display:flex;gap:8px;align-items:center}.route-slot select{flex:1;min-width:0}.route-slot button{flex:0 0 auto}

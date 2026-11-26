@@ -1,4 +1,4 @@
-# True Vector v2.0 Lite — BETA / UNTESTED
+# True Vector v3.4b Lite — BETA / UNTESTED
 Replace the existing GitHub Pages files with the contents of this folder. Open over HTTPS and reload after the service worker updates. Start GPS. This is experimental, not for flight navigation or approach guidance.
 
 Target form: enter coordinates (decimal or D:M:S with hemisphere), altitude in feet, then Set target. Add next target appends up to three. HERE fills the form from a fresh fix; confirm with Set or Add. Remember route stores a named route locally on this browser/device; Recall restores it. Browser storage can be cleared. Next manually overrides experimental automatic sequencing, which requires a close pass and movement away; it may miss a waypoint or advance incorrectly.
@@ -27,3 +27,6 @@ Paste RNP table: enter title, paste plain text, preview and verify, then save. S
 
 ## v3.4a Lite
 Destination lights always use the selected angle and destination elevation, even in multi-target routes. Two white/two red within 50 ft either side of the reference; grey underline. Intermediate lights use the previous-to-active leg interpolation, only within the leg and with good sensor confidence (combined reported accuracy <=10 m); yellow replaces red, with brackets and no underline. No previous waypoint or missing altitude means no intermediate lights. These are experimental indications, not operational guidance. Pointer text selection is disabled; iOS Undo Typing is a system feature and may still appear. On iPhone, Settings > Accessibility > Touch > Shake to Undo can disable shake-triggered prompts system-wide.
+
+## v3.4b Lite
+Route editor Remove buttons remove only the selected draft target, compacting the remaining slots in travel order. Removing the destination promotes the last remaining waypoint. Save commits; Use route activates the saved copy. The target library is unchanged. Intermediate lights now accept moderate or good combined reported GPS accuracy (up to 30 m), with a horizontal accuracy allowance at leg endpoints. No motion is required. Missing vertical accuracy, missing endpoint altitudes, stale fixes and absent previous waypoints still suppress lights. The slope note explains suppression. Final destination angle logic is unchanged. Experimental only; not for operational aviation use.

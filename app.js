@@ -107,7 +107,7 @@
         const leg=distanceAndBearing(prev.lat,prev.lon,state.target.lat,state.target.lon);
         const pos=distanceAndBearing(prev.lat,prev.lon,latitude,longitude);
         const along=pos.metres*Math.cos((pos.bearing-leg.bearing)*Math.PI/180);
-        if(leg.metres>0&&along>=0&&along<=leg.metres)reference=prev.elevation+(state.target.elevation-prev.elevation)*along/leg.metres;
+        if(leg.metres>0&&along>=-accuracy&&along<=leg.metres+accuracy)reference=prev.elevation+(state.target.elevation-prev.elevation)*Math.max(0,Math.min(1,along/leg.metres));
       }
       const delta=altitude*FT_PER_METRE-reference;
       const whites=intermediate?(delta>100?4:delta>50?3:delta>=0?2:delta>=-50?1:0):(delta>100?4:delta>50?3:delta>=-50?2:delta>=-100?1:0);
@@ -115,7 +115,12 @@
       $("papi").classList.toggle("intermediate",intermediate);
       $("papi").setAttribute("aria-label",intermediate?"Experimental intermediate altitude deviation lights":"Experimental destination angle lights");
       $("papi").replaceChildren(...Array.from({length:4},(_,i)=>{const e=document.createElement("span");e.textContent="●";e.style.color=i<whites?"white":intermediate?"#ffdb55":"#ff5555";return e;}));
-      $("papi").style.visibility=fresh&&(intermediate?confidence==="good":confidence!=="poor")&&reference!==null?"visible":"hidden";
+      const showLights=fresh&&confidence!=="poor"&&reference!==null;
+      $("papi").style.visibility=showLights?"visible":"hidden";
+      if(intermediate){
+        const reason=!fresh?"stale GPS":!prev?"no previous waypoint":!Number.isFinite(prev.elevation)?"previous altitude missing":!Number.isFinite(altitudeAccuracy)?"vertical accuracy unavailable":confidence==="poor"?"GPS accuracy insufficient":reference===null?"outside leg or zero-length leg":null;
+        $("slopeNote").textContent=reason?`Profile lights hidden: ${reason}`:note+" | Experimental profile";
+      }
     } else {
       $("slope").textContent="—";
       $("heightDiff").textContent="—";
@@ -183,6 +188,13 @@
   let editingRoute=null;
   function closeEditor(){$("routeEditor").hidden=true;editingRoute=null;}
   function openEditor(key){editingRoute=key;const r=key===null?[]:saved[key];$("routeName").value=key??"";for(const [id,t] of [["dest",r.at(-1)],["finalWp",r.at(-2)],["initialWp",r.at(-3)],["wp4",r.at(-4)],["wp5",r.at(-5)]])$(id).value=t?String(addLibrary(t)):"";$("routeEditor").hidden=false;}
+  const routeSlots=["wp5","wp4","initialWp","finalWp","dest"];
+  function removeRouteSlot(id){
+    if($(id).value==="")return;
+    const remaining=routeSlots.filter(k=>k!==id).map(k=>$(k).value).filter(v=>v!=="");
+    routeSlots.forEach((k,i)=>$(k).value=remaining[i-(routeSlots.length-remaining.length)]??"");
+  }
+  for(const id of routeSlots)$("remove-"+id).onclick=()=>removeRouteSlot(id);
   $("newRoute").onclick=()=>openEditor(null);
   $("editRoute").onclick=()=>attempt(()=>{const k=$("savedRoutes").value;if(!saved[k])throw Error("Choose a saved route");openEditor(k);});
   $("cancelRoute").onclick=closeEditor;
