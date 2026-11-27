@@ -78,3 +78,10 @@ input[type=password],select{width:100%;min-height:44px;background:#0e171e;color:
 #routeView { position:fixed; inset:0; z-index:101; background:#080f16; pointer-events:none; }
 #routeView[hidden] { display:none; }
 #routeCanvas { width:100%; height:100%; display:block; }
+
+.view-row { align-items:flex-start; gap:8px; margin:0 0 6px; }
+.view-row .target-panel { flex:1; min-width:0; padding:0 0 4px; }
+.view-row .target-name { font-size:15px; }
+.view-row #routeProgress { display:flex; flex-wrap:wrap; gap:2px 6px; font-size:11px; line-height:1.3; margin-top:3px; }
+.view-row #routeProgress > div:not(:last-child)::after { content:" →"; color:var(--muted); }
+.view-row .target-meta { font-size:10px; overflow-wrap:anywhere; }

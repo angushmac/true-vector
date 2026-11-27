@@ -291,25 +291,25 @@
     function point(lat,lon,alt){const q=distanceAndBearing(dest.lat,dest.lon,lat,lon),r=q.bearing*Math.PI/180;return {e:q.metres*Math.sin(r),n:q.metres*Math.cos(r),z:datum!==null&&Number.isFinite(alt)?(alt-datum)/FT_PER_METRE*exaggeration:null};}
     const pts=route.map(t=>point(t.lat,t.lon,t.elevation));
     const phone=fix&&Number.isFinite(fix.latitude)&&Number.isFinite(fix.longitude)?point(fix.latitude,fix.longitude,Number.isFinite(fix.altitude)?fix.altitude*FT_PER_METRE:null):null;
-    const all=phone?[...pts,phone]:pts;
-    const extent=Math.max(1852,...all.map(p=>Math.hypot(p.e,p.n)));
-    const raw=extent/NM_METRES/3, pow=10**Math.floor(Math.log10(raw)),step=([1,2,5,10].find(n=>n*pow>=raw)||10)*pow*NM_METRES;
-    const radius=step*Math.ceil(extent/step);
-    const top=Math.min(155,h*.27), bottom=h-110;
+    const radius=15*NM_METRES,step=5*NM_METRES;
+    const inside=p=>Math.hypot(p.e,p.n)<=radius;
+    const clipped=p=>{const r=Math.hypot(p.e,p.n);return r>radius?{e:p.e*radius/r,n:p.n*radius/r,z:null}:p;};
+    const all=[...pts,...(phone?[phone]:[])].filter(inside);
+    const top=90+route.length*17, bottom=h-110;
     const minY=Math.min(-radius*.55,...all.map(p=>-p.n*.55-(p.z??0))),maxY=Math.max(radius*.55,...all.map(p=>-p.n*.55-(p.z??0)));
-    const scale=Math.max(.000001,Math.min((w-44)/(2*radius),Math.max(40,bottom-top)/(maxY-minY||1)));
+    const scale=Math.max(.000001,Math.min((w-70)/(2*radius),Math.max(40,bottom-top)/(maxY-minY||1)));
     const cx=w/2,cy=(top+bottom)/2-(minY+maxY)*scale/2;
     const project=(p,ground=false)=>[cx+p.e*scale,cy-(p.n*.55+(ground?0:p.z??0))*scale];
-    for(let r=step;r<=radius+.01;r+=step){c.beginPath();c.ellipse(cx,cy,r*scale,r*scale*.55,0,0,Math.PI*2);c.strokeStyle="#40505e";c.lineWidth=1;c.stroke();text(`${Number((r/NM_METRES).toPrecision(3))} NM`,cx+r*scale-3,cy-5,"#9cabb6",10,"right");}
+    for(let r=step;r<=radius+.01;r+=step){c.beginPath();c.ellipse(cx,cy,r*scale,r*scale*.55,0,0,Math.PI*2);c.strokeStyle="#40505e";c.lineWidth=1;c.stroke();text(`${r/NM_METRES} NM`,cx+r*scale-3,cy-5,"#9cabb6",10,"right");}
     line([cx,cy-radius*scale*.55],[cx,cy+radius*scale*.55],"#40505e",1,[3,5]);line([cx-radius*scale,cy],[cx+radius*scale,cy],"#40505e",1,[3,5]);
     text("N",cx,cy-radius*scale*.55-8,"white",12,"center");text("S",cx,cy+radius*scale*.55+14,"#9cabb6",11,"center");text("W",cx-radius*scale-5,cy+4,"#9cabb6",11,"right");text("E",cx+radius*scale+5,cy+4,"#9cabb6",11);
-    for(let i=1;i<pts.length;i++){line(project(pts[i-1],true),project(pts[i],true),"#637787",1,[4,4]);if(pts[i-1].z!==null&&pts[i].z!==null)line(project(pts[i-1]),project(pts[i]),i===active?"#ffffff":"#75cbe8",2);}
-    const labels=[];
-    function marker(p,label,color,own=false){const a=project(p),g=project(p,true);if(p.z!==null)line(g,a,color,1,[3,3]);c.beginPath();if(own){c.moveTo(a[0],a[1]-7);c.lineTo(a[0]+7,a[1]);c.lineTo(a[0],a[1]+7);c.lineTo(a[0]-7,a[1]);c.closePath();}else c.arc(...a,4,0,Math.PI*2);c.fillStyle=color;c.fill();labels.push({a,label,color});}
-    pts.forEach((p,i)=>marker(p,`${i+1} ${nameOf(route[i])} · ${route[i].elevation??"?"} ft`,i===active?"#ffffff":i===pts.length-1?"#75cbe8":"#a9bac6"));
-    if(phone)marker(phone,`YOU · ${Number.isFinite(fix.altitude)?Math.round(fix.altitude*FT_PER_METRE)+" ft GPS":"alt unknown"}${fresh?"":" · STALE"}`,fresh?"#ffdb55":"#f07878",true);
-    const boxes=[];c.font="12px system-ui,sans-serif";
-    for(const {a,label,color} of labels){const s=label.slice(0,45),tw=Math.min(w-16,c.measureText(s).width+8),x=Math.max(8,Math.min(w-tw-8,a[0]+8));let y=Math.max(top-10,Math.min(bottom,a[1]-8));for(let k=0;k<20&&boxes.some(b=>x<b.x+b.w&&x+tw>b.x&&Math.abs(y-b.y)<16);k++)y=y+17>bottom?top-10:y+17;boxes.push({x,y,w:tw});line(a,[x,y-4],color,.7);c.fillStyle="#080f16";c.fillRect(x-2,y-12,tw,16);text(s,x,y,color,12);}
+    // Clip each actual segment to the range circle, not merely its endpoints.
+    function segment(a,b){const dx=b.e-a.e,dy=b.n-a.n,A=dx*dx+dy*dy,B=2*(a.e*dx+a.n*dy),C=a.e*a.e+a.n*a.n-radius*radius; if(!A)return inside(a)?[a,b]:null;const D=B*B-4*A*C;if(D<0)return null;const lo=Math.max(0,(-B-Math.sqrt(D))/(2*A)),hi=Math.min(1,(-B+Math.sqrt(D))/(2*A));if(lo>hi)return null;return [lo,hi].map(t=>({e:a.e+t*dx,n:a.n+t*dy,z:a.z!==null&&b.z!==null?a.z+t*(b.z-a.z):null}));}
+    for(let i=1;i<pts.length;i++){const seg=segment(pts[i-1],pts[i]);if(!seg)continue;const color=i===active?"#ffffff":"#75cbe8";line(project(seg[0],true),project(seg[1],true),color,1.5,[4,4]);if(seg.every(p=>p.z!==null))line(project(seg[0]),project(seg[1]),color,2.5);}
+    function edge(p,color){const a=project(clipped(p),true),dx=a[0]-cx,dy=a[1]-cy,ang=Math.atan2(dy,dx);c.beginPath();c.moveTo(a[0]+7*Math.cos(ang),a[1]+7*Math.sin(ang));for(const k of [-1,1])c.lineTo(a[0]-7*Math.cos(ang)+k*5*Math.sin(ang),a[1]-7*Math.sin(ang)-k*5*Math.cos(ang));c.closePath();c.fillStyle=color;c.fill();return a;}
+    function marker(p,color,own=false){if(!inside(p))return edge(p,color);const a=project(p),g=project(p,true);if(p.z!==null)line(g,a,color,1,[3,3]);c.beginPath();if(own){c.moveTo(a[0],a[1]-7);c.lineTo(a[0]+7,a[1]);c.lineTo(a[0],a[1]+7);c.lineTo(a[0]-7,a[1]);c.closePath();}else c.arc(...a,5,0,Math.PI*2);c.fillStyle=color;c.fill();return a;}
+    pts.forEach((p,i)=>{const color=i===active?"#ffffff":i===pts.length-1?"#75cbe8":"#a9bac6";const a=marker(p,color);text(String(i+1),a[0]+7,a[1]-6,color,11);text(`${i+1} ${nameOf(route[i]).slice(0,22)} · ${route[i].elevation??"?"} ft${inside(p)?"":` · ${(Math.hypot(p.e,p.n)/NM_METRES).toFixed(1)} NM`}`,16,74+i*17,color,12);});
+    if(phone){const color=fresh?"#ffdb55":"#f07878",a=marker(phone,color,true);if(!inside(phone)){const label=`YOU ${(Math.hypot(phone.e,phone.n)/NM_METRES).toFixed(1)} NM${fresh?"":" STALE"}`;text(label,Math.max(75,Math.min(w-75,a[0])),a[1]+(a[1]<cy?-12:18),color,12,"center");}else text("YOU",a[0]+9,a[1]-8,color,11);}
     text(`Vertical ×${exaggeration} · ${datum===null?"destination altitude unknown":"relative to destination"}`,16,h-84,"#9cabb6",11);
     text(!fix?"GPS unavailable — route only":!fresh?"STALE GPS — last known position":`GPS horizontal ±${Number.isFinite(fix.accuracy)?Math.round(fix.accuracy)+" m":"?"} · vertical ${Number.isFinite(fix.altitudeAccuracy)?"±"+Math.round(fix.altitudeAccuracy*FT_PER_METRE)+" ft":"unknown"}`,16,h-66,!fresh?"#f3c66b":"#9cabb6",11);
     text("Unknown heights shown on base plane · no terrain",16,h-48,"#9cabb6",11);
