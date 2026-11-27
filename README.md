@@ -1,4 +1,4 @@
-# True Vector v3.4d Lite — BETA / UNTESTED
+# True Vector v4.0 — BETA / UNTESTED
 Replace the existing GitHub Pages files with the contents of this folder. Open over HTTPS and reload after the service worker updates. Start GPS. This is experimental, not for flight navigation or approach guidance.
 
 Target form: enter coordinates (decimal or D:M:S with hemisphere), altitude in feet, then Set target. Add next target appends up to three. HERE fills the form from a fresh fix; confirm with Set or Add. Remember route stores a named route locally on this browser/device; Recall restores it. Browser storage can be cleared. Next manually overrides experimental automatic sequencing, which requires a close pass and movement away; it may miss a waypoint or advance incorrectly.
@@ -36,3 +36,6 @@ Optional route-specific final glide angle (1–10 degrees) in route editor and R
 
 ## v3.4d Lite
 Destination lights use angular deviation from the selected glide angle, with exact 10 and 30 arcminute boundaries. Desired angles are clamped to 2.6–6 degrees, including legacy saved angles. Intermediate profile lights unchanged. Geometric GPS simulation only; no runway PAPI calibration or operational validation.
+
+## v4.0 route overview
+Hold VIEW below Fwd to display the active route in a north-up orthographic 3D schematic; release or move outside the button to return. Destination-centred range rings auto-scale in NM. Vertical exaggeration is 4x before projection; heights are relative to destination elevation. Unknown heights are shown on the base plane and labelled unknown; no altitude is inferred. White marks the active target, cyan the destination, yellow the phone (red for stale fixes). Dashed ground projections and solid known-height legs are schematic straight connections, not procedure geometry. No terrain or obstacle data. Works offline and does not change stored routes. Keyboard: hold Space or Enter on VIEW. Experimental only; not for navigation.

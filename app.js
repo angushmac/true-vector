@@ -271,5 +271,60 @@
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
   }
+  // Hold-to-view: an orthographic, north-up schematic, not a terrain display.
+  const viewButton=$("viewRoute"), viewPanel=$("routeView"), canvas=$("routeCanvas");
+  let viewFrame=0, heldPointer=null, heldKey=null;
+  function drawOverview(){
+    if(viewPanel.hidden)return;
+    const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(3,window.devicePixelRatio||1);
+    if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);}
+    const c=canvas.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);
+    const text=(s,x,y,color="#dce7ef",size=12,align="left")=>{c.font=`${size}px system-ui,sans-serif`;c.fillStyle=color;c.textAlign=align;c.fillText(s,x,y);};
+    const line=(a,b,color,width=1,dash=[])=>{c.beginPath();c.setLineDash(dash);c.strokeStyle=color;c.lineWidth=width;c.moveTo(...a);c.lineTo(...b);c.stroke();c.setLineDash([]);};
+    text("ROUTE OVERVIEW · NORTH UP",16,30,"#dce7ef",14);
+    const dest=route.at(-1);
+    if(!dest){text("No active route or target",w/2,h/2,"#dce7ef",16,"center");return;}
+    text((routeName||nameOf(dest)).slice(0,40),16,52,"#9cabb6",13);
+    const fix=state.fix, fresh=fix&&Date.now()-fix.timestamp<15000;
+    const datum=Number.isFinite(dest.elevation)?dest.elevation:null;
+    const exaggeration=4;
+    function point(lat,lon,alt){const q=distanceAndBearing(dest.lat,dest.lon,lat,lon),r=q.bearing*Math.PI/180;return {e:q.metres*Math.sin(r),n:q.metres*Math.cos(r),z:datum!==null&&Number.isFinite(alt)?(alt-datum)/FT_PER_METRE*exaggeration:null};}
+    const pts=route.map(t=>point(t.lat,t.lon,t.elevation));
+    const phone=fix&&Number.isFinite(fix.latitude)&&Number.isFinite(fix.longitude)?point(fix.latitude,fix.longitude,Number.isFinite(fix.altitude)?fix.altitude*FT_PER_METRE:null):null;
+    const all=phone?[...pts,phone]:pts;
+    const extent=Math.max(1852,...all.map(p=>Math.hypot(p.e,p.n)));
+    const raw=extent/NM_METRES/3, pow=10**Math.floor(Math.log10(raw)),step=([1,2,5,10].find(n=>n*pow>=raw)||10)*pow*NM_METRES;
+    const radius=step*Math.ceil(extent/step);
+    const top=Math.min(155,h*.27), bottom=h-110;
+    const minY=Math.min(-radius*.55,...all.map(p=>-p.n*.55-(p.z??0))),maxY=Math.max(radius*.55,...all.map(p=>-p.n*.55-(p.z??0)));
+    const scale=Math.max(.000001,Math.min((w-44)/(2*radius),Math.max(40,bottom-top)/(maxY-minY||1)));
+    const cx=w/2,cy=(top+bottom)/2-(minY+maxY)*scale/2;
+    const project=(p,ground=false)=>[cx+p.e*scale,cy-(p.n*.55+(ground?0:p.z??0))*scale];
+    for(let r=step;r<=radius+.01;r+=step){c.beginPath();c.ellipse(cx,cy,r*scale,r*scale*.55,0,0,Math.PI*2);c.strokeStyle="#40505e";c.lineWidth=1;c.stroke();text(`${Number((r/NM_METRES).toPrecision(3))} NM`,cx+r*scale-3,cy-5,"#9cabb6",10,"right");}
+    line([cx,cy-radius*scale*.55],[cx,cy+radius*scale*.55],"#40505e",1,[3,5]);line([cx-radius*scale,cy],[cx+radius*scale,cy],"#40505e",1,[3,5]);
+    text("N",cx,cy-radius*scale*.55-8,"white",12,"center");text("S",cx,cy+radius*scale*.55+14,"#9cabb6",11,"center");text("W",cx-radius*scale-5,cy+4,"#9cabb6",11,"right");text("E",cx+radius*scale+5,cy+4,"#9cabb6",11);
+    for(let i=1;i<pts.length;i++){line(project(pts[i-1],true),project(pts[i],true),"#637787",1,[4,4]);if(pts[i-1].z!==null&&pts[i].z!==null)line(project(pts[i-1]),project(pts[i]),i===active?"#ffffff":"#75cbe8",2);}
+    const labels=[];
+    function marker(p,label,color,own=false){const a=project(p),g=project(p,true);if(p.z!==null)line(g,a,color,1,[3,3]);c.beginPath();if(own){c.moveTo(a[0],a[1]-7);c.lineTo(a[0]+7,a[1]);c.lineTo(a[0],a[1]+7);c.lineTo(a[0]-7,a[1]);c.closePath();}else c.arc(...a,4,0,Math.PI*2);c.fillStyle=color;c.fill();labels.push({a,label,color});}
+    pts.forEach((p,i)=>marker(p,`${i+1} ${nameOf(route[i])} · ${route[i].elevation??"?"} ft`,i===active?"#ffffff":i===pts.length-1?"#75cbe8":"#a9bac6"));
+    if(phone)marker(phone,`YOU · ${Number.isFinite(fix.altitude)?Math.round(fix.altitude*FT_PER_METRE)+" ft GPS":"alt unknown"}${fresh?"":" · STALE"}`,fresh?"#ffdb55":"#f07878",true);
+    const boxes=[];c.font="12px system-ui,sans-serif";
+    for(const {a,label,color} of labels){const s=label.slice(0,45),tw=Math.min(w-16,c.measureText(s).width+8),x=Math.max(8,Math.min(w-tw-8,a[0]+8));let y=Math.max(top-10,Math.min(bottom,a[1]-8));for(let k=0;k<20&&boxes.some(b=>x<b.x+b.w&&x+tw>b.x&&Math.abs(y-b.y)<16);k++)y=y+17>bottom?top-10:y+17;boxes.push({x,y,w:tw});line(a,[x,y-4],color,.7);c.fillStyle="#080f16";c.fillRect(x-2,y-12,tw,16);text(s,x,y,color,12);}
+    text(`Vertical ×${exaggeration} · ${datum===null?"destination altitude unknown":"relative to destination"}`,16,h-84,"#9cabb6",11);
+    text(!fix?"GPS unavailable — route only":!fresh?"STALE GPS — last known position":`GPS horizontal ±${Number.isFinite(fix.accuracy)?Math.round(fix.accuracy)+" m":"?"} · vertical ${Number.isFinite(fix.altitudeAccuracy)?"±"+Math.round(fix.altitudeAccuracy*FT_PER_METRE)+" ft":"unknown"}`,16,h-66,!fresh?"#f3c66b":"#9cabb6",11);
+    text("Unknown heights shown on base plane · no terrain",16,h-48,"#9cabb6",11);
+    text("BETA · NOT FOR FLIGHT NAVIGATION",16,h-30,"#f3c66b",11);
+  }
+  function viewLoop(){if(viewPanel.hidden)return;drawOverview();viewFrame=requestAnimationFrame(viewLoop);}
+  function showView(){viewPanel.hidden=false;viewButton.setAttribute("aria-pressed","true");viewLoop();}
+  function hideView(){heldPointer=null;heldKey=null;viewPanel.hidden=true;viewButton.setAttribute("aria-pressed","false");cancelAnimationFrame(viewFrame);}
+  viewButton.addEventListener("pointerdown",e=>{if(!e.isPrimary||e.button!==0||!viewPanel.hidden)return;e.preventDefault();heldPointer=e.pointerId;viewButton.setPointerCapture(e.pointerId);showView();});
+  viewButton.addEventListener("pointermove",e=>{if(e.pointerId!==heldPointer)return;const r=viewButton.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)hideView();});
+  for(const event of ["pointerup","pointercancel","lostpointercapture"])viewButton.addEventListener(event,e=>{if(e.pointerId===heldPointer)hideView();});
+  viewButton.addEventListener("contextmenu",e=>e.preventDefault());
+  viewButton.addEventListener("keydown",e=>{if([" ","Enter"].includes(e.key)){e.preventDefault();if(viewPanel.hidden){heldKey=e.key;showView();}}});
+  window.addEventListener("keyup",e=>{if(e.key===heldKey)hideView();});
+  window.addEventListener("blur",hideView);window.addEventListener("pagehide",hideView);document.addEventListener("visibilitychange",()=>{if(document.hidden)hideView();});
+
   $("installHint").textContent = location.protocol === "file:" ? "For GPS and offline installation, publish on HTTPS (e.g. GitHub Pages)." : "Tip: use your browser menu → Add to Home Screen / Install.";
 })();

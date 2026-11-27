@@ -72,3 +72,9 @@ input[type=password],select{width:100%;min-height:44px;background:#0e171e;color:
 
 .distance-value #nextTrack{font-size:12px;letter-spacing:0;white-space:nowrap;align-self:center;visibility:hidden;color:white;pointer-events:none;user-select:none}
 .distance-value{flex-wrap:wrap}
+.view-row { display:flex; justify-content:flex-end; margin-top:6px; }
+#viewRoute { position:relative; z-index:102; min-width:76px; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+#viewRoute[aria-pressed="true"] { background:#35566a; color:white; }
+#routeView { position:fixed; inset:0; z-index:101; background:#080f16; pointer-events:none; }
+#routeView[hidden] { display:none; }
+#routeCanvas { width:100%; height:100%; display:block; }
