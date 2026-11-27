@@ -1,4 +1,4 @@
-# True Vector v4.0a — BETA / UNTESTED
+# True Vector v4.0b — BETA / UNTESTED
 Replace the existing GitHub Pages files with the contents of this folder. Open over HTTPS and reload after the service worker updates. Start GPS. This is experimental, not for flight navigation or approach guidance.
 
 Target form: enter coordinates (decimal or D:M:S with hemisphere), altitude in feet, then Set target. Add next target appends up to three. HERE fills the form from a fresh fix; confirm with Set or Add. Remember route stores a named route locally on this browser/device; Recall restores it. Browser storage can be cleared. Next manually overrides experimental automatic sequencing, which requires a close pass and movement away; it may miss a waypoint or advance incorrectly.
@@ -41,3 +41,6 @@ Destination lights use angular deviation from the selected glide angle, with exa
 Hold VIEW below Fwd to display the active route in a north-up orthographic 3D schematic; release or move outside the button to return. Destination-centred range rings are fixed at 5, 10 and 15 NM. Vertical exaggeration is 4x before projection; heights are relative to destination elevation. Unknown heights are shown on the base plane and labelled unknown; no altitude is inferred. White marks the active target, cyan the destination, yellow the phone (red for stale fixes). Dashed ground projections and solid known-height legs are schematic straight connections, not procedure geometry. No terrain or obstacle data. Works offline and does not change stored routes. Keyboard: hold Space or Enter on VIEW. Experimental only; not for navigation.
 
 The overview clips route lines at 15 NM, uses numbered markers with a top legend, and shows off-range phone and waypoint arrows with destination-relative range. The route summary shares the VIEW row.
+
+## v4.0b
+Fixed approximately 8 NM horizontal viewport; 2 NM rings through 10 NM clipped to the portrait map. Breadcrumbs are session-only, reset on route activation or clear, sampled at least 20 m apart with horizontal accuracy <=30 m, capped at 5000. North pointer uses GPS track, not compass heading. Intermediate lights are muted yellow, including the first leg with a level (0 degree) reference at target altitude. Final lights retain angular calibration. Angle labels show descent-positive profile angle. All indications remain experimental, not flight guidance.

@@ -5,6 +5,7 @@
   const FT_PER_METRE = 3.280839895;
   const state = { target:null, watchId:null, fix:null, previousRange:null, previousTime:null, closingRates:[], lastEta:null };
 
+  let breadcrumbs=[];
   const trunc5 = n => Number(String(n).includes("e")?Math.trunc(n*100000)/100000:String(n).replace(/(\.\d{5})\d+$/, "$1"));
   const sortName = (a,b) => a.localeCompare(b,"en",{numeric:true,sensitivity:"base"});
   const fmt = (n, digits=1) => Number.isFinite(n) ? n.toFixed(digits) : "—";
@@ -73,6 +74,8 @@
     const fresh=Date.now()-state.fix.timestamp<15000;
     $("distance").dataset.confidence=!fresh||!Number.isFinite(accuracy)||accuracy>30?"poor":accuracy<=10?"good":"moderate";
     $("pointer").style.visibility=fresh&&Number.isFinite(state.track)&&result.metres>accuracy?"visible":"hidden";
+    $("northPointer").style.visibility=fresh&&Number.isFinite(state.track)&&accuracy<=30?"visible":"hidden";
+    $("northPointer").style.transform=`rotate(${-state.track}deg)`;
     $("pointer").style.transform=`rotate(${result.bearing-state.track}deg)`;
     $("gs").replaceChildren(Object.assign(document.createElement("span"),{textContent:"GS ",className:"gs-label"}),document.createTextNode(fresh&&Number.isFinite(state.speed)?`${(state.speed*1.943844).toFixed(0)} kt`:"— kt"));
     const following=route[active+1], arrow=$("secondaryArrow"); arrow.style.visibility=following&&nm<=0.5&&fresh&&Number.isFinite(state.track)&&accuracy<=30?"visible":"hidden"; $("nextTrack").style.visibility=arrow.style.visibility; if(following){const track=distanceAndBearing(state.target.lat,state.target.lon,following.lat,following.lon).bearing;$("nextTrack").textContent=`Next ${String(Math.round(track)%360).padStart(3,"0")}°T`;} if(following)arrow.style.transform=`rotate(${distanceAndBearing(latitude,longitude,following.lat,following.lon).bearing-state.track}deg)`;
@@ -101,11 +104,13 @@
       setConfidence(fresh?confidence:"poor",fresh?note:"Stale GPS fix");
       $("heightDiff").classList.toggle("flash",fresh&&Math.abs(heightFeet)<Number($("flash").value));
       const prev=route[active-1], intermediate=active<route.length-1;
-      let reference=null;
+      let reference=null, profileAngle=null;
       const desiredAngle=clampAngle(routeAngle)??clampAngle(Number($("angle").value))??3.5;
       if(!intermediate){if(result.metres>0)reference=state.target.elevation+result.metres*FT_PER_METRE*Math.tan(desiredAngle*Math.PI/180);}
+      else if(!prev){reference=state.target.elevation;profileAngle=0;}
       else if(prev&&Number.isFinite(prev.elevation)){
         const leg=distanceAndBearing(prev.lat,prev.lon,state.target.lat,state.target.lon);
+        if(leg.metres>0)profileAngle=Math.atan2((prev.elevation-state.target.elevation)/FT_PER_METRE,leg.metres)*180/Math.PI;
         const pos=distanceAndBearing(prev.lat,prev.lon,latitude,longitude);
         const along=pos.metres*Math.cos((pos.bearing-leg.bearing)*Math.PI/180);
         if(leg.metres>0&&along>=-accuracy&&along<=leg.metres+accuracy)reference=prev.elevation+(state.target.elevation-prev.elevation)*Math.max(0,Math.min(1,along/leg.metres));
@@ -115,11 +120,12 @@
       $("papi").classList.toggle("destination",!intermediate);
       $("papi").classList.toggle("intermediate",intermediate);
       $("papi").setAttribute("aria-label",intermediate?"Experimental intermediate altitude deviation lights":"Experimental destination angle lights");
-      $("papi").replaceChildren(...Array.from({length:4},(_,i)=>{const e=document.createElement("span");e.textContent="●";e.style.color=i<whites?"white":intermediate?"#ffdb55":"#ff5555";return e;}));
+      $("papi").replaceChildren(...Array.from({length:4},(_,i)=>{const e=document.createElement("span");e.textContent="●";e.style.color=i<whites?"white":intermediate?"#b69a38":"#ff5555";return e;}));
       const showLights=fresh&&confidence!=="poor"&&reference!==null;
+      if(showLights){const label=document.createElement("span");label.className="angle-label";label.textContent=`${(intermediate?profileAngle:desiredAngle).toFixed(1)}°`;$("papi").append(label);}
       $("papi").style.visibility=showLights?"visible":"hidden";
       if(intermediate){
-        const reason=!fresh?"stale GPS":!prev?"no previous waypoint":!Number.isFinite(prev.elevation)?"previous altitude missing":!Number.isFinite(altitudeAccuracy)?"vertical accuracy unavailable":confidence==="poor"?"GPS accuracy insufficient":reference===null?"outside leg or zero-length leg":null;
+        const reason=!fresh?"stale GPS":prev&&!Number.isFinite(prev.elevation)?"previous altitude missing":!Number.isFinite(altitudeAccuracy)?"vertical accuracy unavailable":confidence==="poor"?"GPS accuracy insufficient":reference===null?"outside leg or zero-length leg":null;
         $("slopeNote").textContent=reason?`Profile lights hidden: ${reason}`:note+" | Experimental profile";
       }
     } else {
@@ -162,7 +168,7 @@
   $("targetForm").onsubmit=e=>{e.preventDefault();attempt(()=>{if(editing!==null)throw Error("Use Save target changes");const t=formTarget();if(!t.name)throw Error("Enter a target name");const i=addLibrary(t);$("targetLibrary").value=String(i);$("libraryStatus").textContent="Target saved locally.";clearForm();});};
   $("updateStored").onclick=()=>attempt(()=>{if(editing===null)return;const t=formTarget();if(!t.name)throw Error("Enter a target name");if(!confirm("Update target? Saved routes retain their original details until edited."))return;library[editing]={...t};persistLibrary();listLibrary();clearForm();$("libraryStatus").textContent="Target updated.";});
   $("deleteTarget").onclick=()=>attempt(()=>{const i=chosen();if(!confirm("Delete "+nameOf(library[i])+" from library? Saved routes are unchanged."))return;library.splice(i,1);persistLibrary();clearForm();listLibrary();$("targetLibrary").value="";closeEditor();});
-  $("useTarget").onclick=()=>attempt(()=>{const t=library[chosen()];route=[{...t}];active=0;routeName="";routeAngle=null;select();});
+  $("useTarget").onclick=()=>attempt(()=>{const t=library[chosen()];breadcrumbs=[];route=[{...t}];active=0;routeName="";routeAngle=null;select();});
   function nameOf(t){return t.name||`${t.lat.toFixed(5)}, ${t.lon.toFixed(5)}`;}
   function clearForm(){editing=null;$("updateStored").disabled=true;$("storeTarget").disabled=false;for(const id of ["targetName","latitude","longitude","targetElevation"])$(id).value="";}
   function parseCoord(value, limit) {
@@ -182,7 +188,7 @@
   $("back").onclick=()=>{if(active>0){active--;select()}};
   $("routeSearch").oninput=listSaved;$("targetSearch").oninput=listLibrary;
   $("next").onclick=()=>{if(active+1<route.length){active++;select()}};
-  function clearActive(){route=[];active=0;routeName="";routeAngle=null;select();for(const id of ["distance","bearing","slope","heightDiff","eta","etaNote"])$(id).textContent="—";$("nextTrack").style.visibility="hidden";$("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");}
+  function clearActive(){breadcrumbs=[];route=[];active=0;routeName="";routeAngle=null;select();for(const id of ["distance","bearing","slope","heightDiff","eta","etaNote"])$(id).textContent="—";$("nextTrack").style.visibility="hidden";$("northPointer").style.visibility=$("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");}
   $("clearTarget").onclick=clearActive;
   $("here").onclick=()=>attempt(()=>{if(!state.fix||Date.now()-state.fix.timestamp>15000)throw Error("Fresh GPS fix required");const name=prompt("Name this captured location (required)","");if(!name||!name.trim()||name.trim().toUpperCase()==="HERE")return;clearForm();fill({name:name.trim(),lat:state.fix.latitude,lon:state.fix.longitude,elevation:Number.isFinite(state.fix.altitude)?Math.round(state.fix.altitude*FT_PER_METRE):null});$("libraryStatus").textContent="Captured. Check details and save new target.";});
   $("importPoints").onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(!Array.isArray(data)||!data.every(t=>typeof t.name==="string"&&Number.isFinite(t.lat)&&Math.abs(t.lat)<=90&&Number.isFinite(t.lon)&&Math.abs(t.lon)<=180))throw Error("Expected array of name, lat, lon records");points=data;localStorage.setItem("tvPoints",JSON.stringify(points));alert(`${points.length} points imported; verify cycle and coordinates.`)}catch(e){alert(e.message)}};
@@ -206,7 +212,7 @@
   $("cancelRoute").onclick=closeEditor;
   $("saveRoute").onclick=()=>attempt(()=>{if($("dest").value==="")throw Error("Choose a destination");const r=["wp5","wp4","initialWp","finalWp","dest"].map(id=>$(id).value).filter(v=>v!=="").map(v=>({...library[Number(v)]}));const k=$("routeName").value.trim()||nameOf(r.at(-1));const glide=readRouteAngle("routeGlide");if(k!==editingRoute&&saved[k]&&!confirm("Replace saved route "+k+"?"))return;if(editingRoute!==null&&editingRoute!==k){delete saved[editingRoute];delete savedAngles[editingRoute];}saved[k]=r;savedAngles[k]=glide;persistAngles();localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved();$("savedRoutes").value=k;previewRoute();closeEditor();});
   $("deleteRoute").onclick=()=>attempt(()=>{const k=$("savedRoutes").value;if(!saved[k])throw Error("Choose a saved route");if(!confirm("Delete saved route "+k+"? Any active copy remains until cleared."))return;delete saved[k];delete savedAngles[k];persistAngles();localStorage.setItem("tvSaved",JSON.stringify(saved));listSaved();closeEditor();});
-  $("recall").onclick=()=>attempt(()=>{const k=$("savedRoutes").value,r=saved[k];if(!r)throw Error("Choose a saved route");route=r.map(t=>({...t}));routeName=k;routeAngle=savedAngles[k]??null;active=0;select();});
+  $("recall").onclick=()=>attempt(()=>{const k=$("savedRoutes").value,r=saved[k];if(!r)throw Error("Choose a saved route");breadcrumbs=[];route=r.map(t=>({...t}));routeName=k;routeAngle=savedAngles[k]??null;active=0;select();});
   let pendingImport=null;
   function compactCoord(raw,limit){const m=raw.match(/^(\d{2,3})(\d{2})(\d{2}(?:\.\d+)?)([NSEW])$/i);if(!m||m[1].length!==(limit===90?2:3))throw Error("Invalid compact coordinate: "+raw);const n=parseCoord(`${m[1]} ${m[2]} ${m[3]}${m[4]}`,limit);if(!Number.isFinite(n))throw Error("Invalid coordinate: "+raw);return trunc5(n);}
   function parseRnp(text){const rows=[...text.matchAll(/(?:^|\s)([A-Z0-9]+)\s+(\d{3})\s+([A-Z]{2})\s+/g)];if(!rows.length||rows[0][2]!=="001")throw Error("Expected sequence 001 and path terminator");const targets=[],notes=[];for(let i=0;i<rows.length;i++){const m=rows[i],body=text.slice(m.index+m[0].length,rows[i+1]?.index??text.length).trim();if(Number(m[2])!==i+1)throw Error("Non-consecutive sequence");if(!["IF","TF"].includes(m[3])){notes.push(`${m[2]} ${m[3]} excluded: unsupported path terminator`);if(i!==rows.length-1)throw Error("Unsupported non-final leg");continue;}const c=body.match(/(\d{6}(?:\.\d+)?[NS])\s+(\d{7}(?:\.\d+)?[EW])/i);if(!c)throw Error("Missing coordinates at "+m[2]);const fields=body.slice(0,c.index).trim().split(/\s+/);const name=fields[0],level=fields.at(-2);if(!name||name==="-"||!/^(-|\d+)$/.test(level))throw Error("Unrecognised name or level at "+m[2]);targets.push({name,lat:compactCoord(c[1],90),lon:compactCoord(c[2],180),elevation:level==="-"?null:Number(level),path:m[3],sequence:m[2]});}if(!targets.length||targets.length>5)throw Error("Expected one to five coordinate targets");return {targets,notes};}
@@ -222,6 +228,7 @@
     state.fix={latitude:c.latitude,longitude:c.longitude,altitude:c.altitude,altitudeAccuracy:c.altitudeAccuracy,accuracy:c.accuracy,timestamp:position.timestamp || Date.now()};
     state.speed=Number.isFinite(c.speed)?c.speed:null;state.track=state.speed>=2&&Number.isFinite(c.heading)&&c.accuracy<=30?c.heading:null;
     if(old&&c.accuracy<=30&&old.accuracy<=30){const d=distanceAndBearing(old.latitude,old.longitude,c.latitude,c.longitude),dt=(state.fix.timestamp-old.timestamp)/1000;if(dt>0&&dt<=20&&d.metres>Math.max(10,old.accuracy+c.accuracy)){if(state.speed===null)state.speed=d.metres/dt;if(state.track===null&&state.speed>=2)state.track=d.bearing;}}
+    if(route.length&&c.accuracy<=30&&Date.now()-state.fix.timestamp<15000){const last=breadcrumbs.at(-1);if(!last||distanceAndBearing(last.latitude,last.longitude,c.latitude,c.longitude).metres>=Math.max(20,c.accuracy)){breadcrumbs.push({...state.fix});if(breadcrumbs.length>5000)breadcrumbs.shift();}}
     sequence(old);
     $("gpsStatus").textContent="GPS FIX RECEIVED";
     $("gpsStatus").style.color="var(--green)";
@@ -249,7 +256,7 @@
 
   $("stopGps").addEventListener("click", () => {
     if (state.watchId !== null) navigator.geolocation.clearWatch(state.watchId);
-    state.watchId=null; if(wake)wake.release(); $("wakeStatus").textContent="Screen wake lock released"; state.fix=null; $("heightDiff").classList.remove("flash"); $("nextTrack").style.visibility="hidden";$("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden"; $("distance").dataset.confidence="poor"; setConfidence("poor","GPS paused"); $("gs").textContent="GS — kt"; $("startGps").disabled=false; $("stopGps").disabled=true;
+    state.watchId=null; if(wake)wake.release(); $("wakeStatus").textContent="Screen wake lock released"; state.fix=null; $("heightDiff").classList.remove("flash"); $("nextTrack").style.visibility="hidden";$("northPointer").style.visibility=$("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden"; $("distance").dataset.confidence="poor"; setConfidence("poor","GPS paused"); $("gs").textContent="GS — kt"; $("startGps").disabled=false; $("stopGps").disabled=true;
     $("gpsStatus").textContent="GPS PAUSED"; $("gpsStatus").style.color="var(--muted)";
   });
 
@@ -266,7 +273,7 @@
   } catch (_) { localStorage.removeItem("trueVectorTarget"); }
 
   try {const r=JSON.parse(localStorage.getItem("tvRoute")||"null");route=r?.route|| (state.target?[state.target]:[]);active=r?.active||0;routeName=r?.routeName||"";routeAngle=clampAngle(r?.routeAngle);savedAngles=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvRouteAngles")||"{}"));for(const k of Object.keys(savedAngles))savedAngles[k]=clampAngle(savedAngles[k]);persistAngles();points=JSON.parse(localStorage.getItem("tvPoints")||"[]");saved=Object.assign(Object.create(null),JSON.parse(localStorage.getItem("tvSaved")||"{}"));library=JSON.parse(localStorage.getItem("tvLibrary")||"[]");if(localStorage.getItem("tvLibrary")===null)for(const t of [...route,...Object.values(saved).flat()])addLibrary(t);listLibrary();listSaved();select();clearForm();}catch(e){$("libraryStatus").textContent="Could not restore local data: "+e.message;}
-  setInterval(()=>{if(state.fix&&Date.now()-state.fix.timestamp>=15000){$("distance").dataset.confidence="poor";setConfidence("poor","Stale GPS fix");$("nextTrack").style.visibility="hidden";$("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");$("gs").textContent="GS — kt";$("eta").textContent="--:--";}},1000);
+  setInterval(()=>{if(state.fix&&Date.now()-state.fix.timestamp>=15000){$("distance").dataset.confidence="poor";setConfidence("poor","Stale GPS fix");$("nextTrack").style.visibility="hidden";$("northPointer").style.visibility=$("secondaryArrow").style.visibility=$("pointer").style.visibility=$("papi").style.visibility="hidden";$("heightDiff").classList.remove("flash");$("gs").textContent="GS — kt";$("eta").textContent="--:--";}},1000);
   for(const id of ["angle","flash"]){const v=localStorage.getItem("tv-"+id);if(v!==null)$(id).value=v;if(id==="angle")$(id).value=clampAngle(Number($(id).value))??3.5;$(id).onchange=()=>{if(id==="angle")$(id).value=$(id).value.trim()?clampAngle(Number($(id).value))??3.5:3.5;localStorage.setItem("tv-"+id,$(id).value);if(state.fix)render()}}
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
@@ -291,25 +298,27 @@
     function point(lat,lon,alt){const q=distanceAndBearing(dest.lat,dest.lon,lat,lon),r=q.bearing*Math.PI/180;return {e:q.metres*Math.sin(r),n:q.metres*Math.cos(r),z:datum!==null&&Number.isFinite(alt)?(alt-datum)/FT_PER_METRE*exaggeration:null};}
     const pts=route.map(t=>point(t.lat,t.lon,t.elevation));
     const phone=fix&&Number.isFinite(fix.latitude)&&Number.isFinite(fix.longitude)?point(fix.latitude,fix.longitude,Number.isFinite(fix.altitude)?fix.altitude*FT_PER_METRE:null):null;
-    const radius=15*NM_METRES,step=5*NM_METRES;
-    const inside=p=>Math.hypot(p.e,p.n)<=radius;
-    const clipped=p=>{const r=Math.hypot(p.e,p.n);return r>radius?{e:p.e*radius/r,n:p.n*radius/r,z:null}:p;};
-    const all=[...pts,...(phone?[phone]:[])].filter(inside);
-    const top=90+route.length*17, bottom=h-110;
-    const minY=Math.min(-radius*.55,...all.map(p=>-p.n*.55-(p.z??0))),maxY=Math.max(radius*.55,...all.map(p=>-p.n*.55-(p.z??0)));
-    const scale=Math.max(.000001,Math.min((w-70)/(2*radius),Math.max(40,bottom-top)/(maxY-minY||1)));
-    const cx=w/2,cy=(top+bottom)/2-(minY+maxY)*scale/2;
+    const radius=10*NM_METRES,step=2*NM_METRES;
+    const scale=Math.max(.000001,(w-16)/(8*NM_METRES));
+    const cx=w/2,cy=h*.59;
     const project=(p,ground=false)=>[cx+p.e*scale,cy-(p.n*.55+(ground?0:p.z??0))*scale];
-    for(let r=step;r<=radius+.01;r+=step){c.beginPath();c.ellipse(cx,cy,r*scale,r*scale*.55,0,0,Math.PI*2);c.strokeStyle="#40505e";c.lineWidth=1;c.stroke();text(`${r/NM_METRES} NM`,cx+r*scale-3,cy-5,"#9cabb6",10,"right");}
-    line([cx,cy-radius*scale*.55],[cx,cy+radius*scale*.55],"#40505e",1,[3,5]);line([cx-radius*scale,cy],[cx+radius*scale,cy],"#40505e",1,[3,5]);
-    text("N",cx,cy-radius*scale*.55-8,"white",12,"center");text("S",cx,cy+radius*scale*.55+14,"#9cabb6",11,"center");text("W",cx-radius*scale-5,cy+4,"#9cabb6",11,"right");text("E",cx+radius*scale+5,cy+4,"#9cabb6",11);
+    const left=14,right=w-14,top=Math.min(h*.42,90+route.length*15),bottom=h-100;
+    const inside=p=>{const a=project(p);return a[0]>=left&&a[0]<=right&&a[1]>=top&&a[1]<=bottom&&Math.hypot(p.e,p.n)<=radius;};
+    const clipped=p=>{const a=project(p,true),dx=a[0]-cx,dy=a[1]-cy;const k=Math.min(1,radius/Math.max(1,Math.hypot(p.e,p.n)),dx>0?(right-cx)/dx:dx<0?(left-cx)/dx:Infinity,dy>0?(bottom-cy)/dy:dy<0?(top-cy)/dy:Infinity);return {e:p.e*k,n:p.n*k,z:null};};
+    c.save();c.beginPath();c.rect(0,top,w,Math.max(0,bottom-top));c.clip();
+    for(let r=step;r<=radius+.01;r+=step){c.beginPath();c.ellipse(cx,cy,r*scale,r*scale*.55,0,0,Math.PI*2);c.strokeStyle="#40505e";c.lineWidth=1;c.stroke();text(`${r/NM_METRES} NM`,cx+5,cy-r*scale*.55+12,"#9cabb6",10);}
+    line([cx,top],[cx,bottom],"#40505e",1,[3,5]);line([0,cy],[w,cy],"#40505e",1,[3,5]);
+    text("N",cx,top+12,"white",12,"center");text("S",cx,bottom-4,"#9cabb6",11,"center");text("W",5,cy-5,"#9cabb6",11);text("E",w-5,cy-5,"#9cabb6",11,"right");
+    for(const f of breadcrumbs){const p=point(f.latitude,f.longitude,Number.isFinite(f.altitude)?f.altitude*FT_PER_METRE:null);if(inside(p)){c.beginPath();c.arc(...project(p),2,0,Math.PI*2);c.fillStyle="#b69a38";c.fill();}}
     // Clip each actual segment to the range circle, not merely its endpoints.
     function segment(a,b){const dx=b.e-a.e,dy=b.n-a.n,A=dx*dx+dy*dy,B=2*(a.e*dx+a.n*dy),C=a.e*a.e+a.n*a.n-radius*radius; if(!A)return inside(a)?[a,b]:null;const D=B*B-4*A*C;if(D<0)return null;const lo=Math.max(0,(-B-Math.sqrt(D))/(2*A)),hi=Math.min(1,(-B+Math.sqrt(D))/(2*A));if(lo>hi)return null;return [lo,hi].map(t=>({e:a.e+t*dx,n:a.n+t*dy,z:a.z!==null&&b.z!==null?a.z+t*(b.z-a.z):null}));}
     for(let i=1;i<pts.length;i++){const seg=segment(pts[i-1],pts[i]);if(!seg)continue;const color=i===active?"#ffffff":"#75cbe8";line(project(seg[0],true),project(seg[1],true),color,1.5,[4,4]);if(seg.every(p=>p.z!==null))line(project(seg[0]),project(seg[1]),color,2.5);}
     function edge(p,color){const a=project(clipped(p),true),dx=a[0]-cx,dy=a[1]-cy,ang=Math.atan2(dy,dx);c.beginPath();c.moveTo(a[0]+7*Math.cos(ang),a[1]+7*Math.sin(ang));for(const k of [-1,1])c.lineTo(a[0]-7*Math.cos(ang)+k*5*Math.sin(ang),a[1]-7*Math.sin(ang)-k*5*Math.cos(ang));c.closePath();c.fillStyle=color;c.fill();return a;}
     function marker(p,color,own=false){if(!inside(p))return edge(p,color);const a=project(p),g=project(p,true);if(p.z!==null)line(g,a,color,1,[3,3]);c.beginPath();if(own){c.moveTo(a[0],a[1]-7);c.lineTo(a[0]+7,a[1]);c.lineTo(a[0],a[1]+7);c.lineTo(a[0]-7,a[1]);c.closePath();}else c.arc(...a,5,0,Math.PI*2);c.fillStyle=color;c.fill();return a;}
-    pts.forEach((p,i)=>{const color=i===active?"#ffffff":i===pts.length-1?"#75cbe8":"#a9bac6";const a=marker(p,color);text(String(i+1),a[0]+7,a[1]-6,color,11);text(`${i+1} ${nameOf(route[i]).slice(0,22)} · ${route[i].elevation??"?"} ft${inside(p)?"":` · ${(Math.hypot(p.e,p.n)/NM_METRES).toFixed(1)} NM`}`,16,74+i*17,color,12);});
-    if(phone){const color=fresh?"#ffdb55":"#f07878",a=marker(phone,color,true);if(!inside(phone)){const label=`YOU ${(Math.hypot(phone.e,phone.n)/NM_METRES).toFixed(1)} NM${fresh?"":" STALE"}`;text(label,Math.max(75,Math.min(w-75,a[0])),a[1]+(a[1]<cy?-12:18),color,12,"center");}else text("YOU",a[0]+9,a[1]-8,color,11);}
+    pts.forEach((p,i)=>{const color=i===active?"#ffffff":i===pts.length-1?"#75cbe8":"#a9bac6";const a=marker(p,color);text(String(i+1),a[0]+7,a[1]-6,color,11);});
+    if(phone){const color=fresh?"#ffdb55":"#f07878",a=marker(phone,color,true);if(!inside(phone)){const label=`YOU ${(Math.hypot(phone.e,phone.n)/NM_METRES).toFixed(1)} NM${fresh?"":" STALE"}`;text(label,Math.max(75,Math.min(w-75,a[0])),Math.max(top+25,Math.min(bottom-12,a[1]+(a[1]<cy?18:-12))),color,12,"center");}else text("YOU",a[0]+9,a[1]-8,color,11);}
+    c.restore();
+    pts.forEach((p,i)=>text(`${i+1} ${nameOf(route[i]).slice(0,22)} · ${route[i].elevation??"?"} ft`,16,68+i*15,i===active?"white":"#a9bac6",11));
     text(`Vertical ×${exaggeration} · ${datum===null?"destination altitude unknown":"relative to destination"}`,16,h-84,"#9cabb6",11);
     text(!fix?"GPS unavailable — route only":!fresh?"STALE GPS — last known position":`GPS horizontal ±${Number.isFinite(fix.accuracy)?Math.round(fix.accuracy)+" m":"?"} · vertical ${Number.isFinite(fix.altitudeAccuracy)?"±"+Math.round(fix.altitudeAccuracy*FT_PER_METRE)+" ft":"unknown"}`,16,h-66,!fresh?"#f3c66b":"#9cabb6",11);
     text("Unknown heights shown on base plane · no terrain",16,h-48,"#9cabb6",11);
